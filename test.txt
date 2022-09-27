@@ -1,0 +1,226 @@
+
+@Lexer
+#!literals
+~
+    / -> patterns/-/regex
+    TILDE
+!
+    = NE
+    NOT
+@ AT
+#
+    ! BANG
+    HASH
+$ DOLLAR
+%
+    = MODULOEQ
+    MODULO
+^
+    /
+        = ROOTEQ
+        ROOT
+    = BITWISEXOREQ
+    BITWISEXOR
+&
+    & AND
+    BITWISEAND
+*
+    *
+        = POWEQ
+        POW
+    = MULEQ
+    MUL
+( LPAREN
+) RPAREN
+-
+    - DEC
+    > RARROW
+    = MINUSEQ
+    MINUS
++
+    = PLUSEQ
+    + INC
+    PLUS
+=
+    = EE
+    EQ
+{ LBRACKET
+} RBRACKET
+[ LBRACE
+] RBRACE
+|
+    > FUNCDEF
+    = APPROXEQ
+    | OR
+    BITWISEOR
+\
+    \ -> patterns/-/comment
+    BACKSLASH
+:
+    = COLONEQ
+    COLON
+; SEMICOLON
+" -> patterns/-/string
+' -> patterns/-/string
+<
+    <
+        < IMPORT
+        LBITSHIFT
+    = LTE
+    - LARROW
+    LT
+, COMMA
+. DOT
+>
+    >
+        > CLASSDEF
+        RBITSHIFT
+    = GTE
+    GT
+/
+    /
+        = FLOOREQ
+        FLOOR
+    = DIVEQ
+    DIV
+?
+    = QMARKEQ
+    QMARK
+#!patterns
+comment:
+    >> (\\.*)
+    COMMENT
+string:
+    >> ("...")
+    >> ('...')
+    >> (f"...")
+    >> (f'...')
+    STRING
+regex:
+    >> (~/.../.../~)
+    >> (~/.../~)
+    >> (~/~)
+    REGEX
+number: #redirect-from:[0-9]
+    >>> ([1-9][_0-9]*|0)
+        >>> (x[0-9a-zA-Z_]+(\.[0-9]+)?)
+            BASENUM
+        >>> (\.[0-9]+)
+            FLOAT
+        INT
+identifier: #redirect-from:[_a-zA-Z]
+    >-> (if|elif|else|switch|case|while|for|in|is|throw|catch|and|or|not)
+        >>> (and)
+            AND #no-value
+        >>> (or)
+            OR #no-value
+        >>> (not)
+            NOT #no-value
+        KEYWORD #regex-value
+    >>> ([_a-zA-Z][_a-zA-Z0-9]*)
+        >-> (f)
+            -> patterns/-/string
+        ID
+
+@Nodes
+Empty
+Null
+String(value)
+Integer(value)
+Float(value)
+Basenum(value)
+Regex(value)
+UnaryOp(op, value)
+BinOp(left, op, right)
+Body(statements)
+Return(value)
+Break
+Contniue
+CallNode(name, args)
+PassArg(target, value)
+Import(target, sub_import, module)
+VarAssign(name, aliases, clamp, value)
+VarAccess(name)
+FuncDef(name, aliases, clamp, args, body)
+ClassDef(name, aliases, body)
+
+
+BinOp(left, op, right)
+UnaryOp(op, value)
+TernaryOp(left, op, middle, right)
+
+@Parser
+statements: Body
+    | statements:[statement]*
+statement:
+    Return | <KEYWORD:return> value:[expr]?
+    Break | <KEYWORD:break>
+    Continue | <KEYWORD:continue>
+    | [expr]
+expr:
+    BinOp | left:[comp-expr] op:<(AND|OR)> right:[comp-expr]
+    | [comp-expr]
+comp-expr:
+    UnaryOp | op:<NOT> value:[comp-expr]
+    BinOP | left:[arith-expr] op:<(EE|NE|GT|LT|GTE|LTE)> right:[arith-expr]
+    | [arith-expr]
+arith-expr:
+    BinOp | left:[term] op:<(PLUS|MINUS)> right:[term]
+    | [term]
+term:
+    BinOp | left:[dot] op:<(MUL|DIV|FLOORDIV|MODULO)> right:[dot]
+    | [dot]
+dot:
+    BinOp | left:[factor] op:<DOT> right:[factor]
+    | [factor]
+factor:
+    UnaryOp | op:<(PLUS|MINUS|QMARK)> value:[factor]
+    | [bitswap]
+bitswap:
+    BinOp | left:[power] op:<(QMARK|TILDE)> right:[power]
+    | [power]
+power:
+    BinOp | left:[call] op:<(POW|ROOT)> right:[factor]
+    | [call]
+call:
+    CallNode | name:[atom] <LPAREN> args:[pass-arg]* <RPAREN>
+    | [atom]
+pass-arg: PassArg
+    | target:<ID> <EQ> value:[expr]
+    | value:<ID>  #target:Empty
+    | value:[expr]  #target:Empty
+atom:
+    Integer | value:<INT>
+    Float | value:<FLOAT>
+    Basenum | value:<BASENUM>
+    String | value:<STRING>
+    Regex | value:<REGEX>
+    | [(import-expr|var-def|func-def|class-def|obj-def|list-expr|if-expr|for-expr|while-expr)]
+    | <LPAREN> [expr] <RPAREN>
+import-expr: Import
+    | <IMPORT> sub_import:<ID> <IMPORT> module:<ID>  #target:Empty
+    | <IMPORT> module:<ID>  #target:Empty #sub_import:Empty
+    | target:<ID> <IMPORT> sub_import:<ID> <IMPORT> module:<ID>
+    | target:<ID> <IMPORT> module:<ID>  #sub_import:Empty
+var-def: VarAssign
+    | mod:<(VLINE|HASH|DOLLAR)>? name:<ID> (<ALIAS> aliases:<ID>)* <SEMICOLON>  #clamp:Clamp([],True) #value:Null
+    | mod:<(VLINE|HASH|DOLLAR)>? name:<ID> (<ALIAS> aliases:<ID>)* clamp:[clamp]? <EQ> value:[expr]
+func-def: FuncDef
+    | mod:<(VLINE|HASH|DOLLAR)>? <FUNCDEF> name:<ID> (<ALIAS> aliases:<ID>)* [clamp]? <LPAREN> args:[args]* <RPAREN> <LBRACKET> body:[statements] <RBRACKET>
+class-def: ClassDef
+    | mod:<(VLINE|HASH|DOLLAR)>? <CLASSDEF> name:<ID> (<ALIAS> aliases:<ID>)* [clamp]? <LBRACKET> body:[statements] <RBRACKET>
+
+list-expr:
+    | 
+if-expr: If
+    | <KEYWORD:if> condition:[expr] <LBRACKET> body:[statements] <RBRACKET> cases:[elif-expr]* else_case:[else-expr]?
+elif-expr:
+    | <KEYWORD:elif> condition:[expr] <LBRACKET> body:[statements] <RBRACKET>
+else-expr:
+    | <KEYWORD:else> <LBRACKET> body:[statements] <RBRACKET>
+for-expr: For
+    | <KEYWORD:for> init:[expr] <SEMICOLON> condition:[expr] <SEMICOLON> 
+while-expr: While
+    | 
+@Code
+15 + 16
