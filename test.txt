@@ -133,6 +133,8 @@ BinOpNode(left, op, right)
 UnaryOpNode(op, value)
 
 @Parser
+#!entry-point: statements
+
 statements:
     BodyNode | statements:[statement]*
 statement:
@@ -167,9 +169,12 @@ atom:
     | <FLOAT>
     | <BASENUM>
     | <BOOLEAN>
-    | <>
-
-#!entry-point:statements
+    | <NULL>
+import-expr: ImportNode
+    | <IMPORT> sub_import:<ID> <IMPORT> module:<ID>  #target:NullNode
+    | <IMPORT> module:<ID>  #sub_import:NullNode #target:NullNode
+    | target:<ID> <IMPORT> sub_import:<ID> <IMPORT> module:<ID>
+    
 
 
 @Code

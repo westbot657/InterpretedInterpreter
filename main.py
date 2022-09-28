@@ -39,6 +39,7 @@ class Tree:
         self.tree = init
         self.current_branch = self.tree
         self.current_branch_str = ""
+        self.locked = False
 
     def goto(self, path):
         if isinstance(path, list):
@@ -53,9 +54,13 @@ class Tree:
                     raise Exception(f"path '{path}' is not valid")
                 self.current_branch = b
             else:
+                if self.locked: raise Exception(f"path does not exist: '{path}'")
                 self.current_branch.update({p: {}})
                 self.current_branch = self.current_branch.get(p)
 
+    def lock(self):
+        self.locked = True
+    
     def get_path(self):
         if self.current_branch_str == "": x = []
         x = self.current_branch_str.split("/-/")
@@ -514,8 +519,8 @@ class Token:
 
     def regex(self):
         if self.regex_value:
-            return f"<{self.token_type}:{self.token_value}:{id(self)}>"
-        return f"<{self.token_type}:{id(self)}>"
+            return f"<{self.token_type}:{self.token_value}>"
+        return f"<{self.token_type}>"
 
     def __repr__(self):
         if self.token_value:
@@ -1146,6 +1151,7 @@ class ParserBuilder:
     def __init__(self, text):
         self.text = text
         self.tree = Tree()
+        self.entry_point = None
 
     def _parse(self, pattern):
         """
@@ -1264,10 +1270,14 @@ class ParserBuilder:
         for line_ in self.text.split("\n"):
             line = line_.strip()
             pieces = line.split(" ")
+
+            if line.startswith("#!entry-point:"):
+                self.entry_point = line.replace("#!entry-point:", "").strip()
+                continue
             
             if (not line_.startswith(" ")) and pieces[0].endswith(":"):
                 if len(pieces) >= 1: # rule-name:
-                    self.tree.goto(pieces[0])
+                    self.tree.goto(pieces[0].replace(":", ""))
                     index = 0
 
                 if len(pieces) == 2: # rule-name: Node
@@ -1317,11 +1327,113 @@ class ParserBuilder:
 Pprint = DebugPrint("Parser", 0, 220, 220)
 class Parser:
 
-    def __init__(self):
-        pass
+    def __init__(self, tokens, builder):
+        self.tree = builder.tree
+        self.tree.lock() # locking the tree stops goto from creating new branches
+        self.entry_point = builder.entry_point
+        self.tokens = tokens
+        self.tok_len = len(tokens)
+        self.idx = 0
+        self.diff = 0
+        self._diff = 0
+        self.current_tok = None
 
-    def parse(self, tokens):
-        retok = "".join([tok.regex() for tok in tokens])
+    def gdx(self):
+        return self.idx + self.diff
+
+    def advance(self, n=1):
+        Pprint(f"advance: {n=}")
+        while n >= 1:
+            self.idx += 1
+            if self.idx < self.tok_len:
+                self.current_tok = self.tokens[self.idx]
+            else:
+                self.current_tok = None
+            n -= 1
+
+    def ghost_advance(self, n=1):
+        Pprint(f"ghost-advance: {n=}", x="ghost")
+        self.diff += n
+        if self.idx + self.diff < self.tok_len:
+            self.current_tok = self.tokens[self.idx + self.diff]
+        else:
+            self.current_tok = None
+
+    def ghost_reset(self):
+        Pprint("ghost-reset", x="ghost")
+        self.diff = 0
+        if self.idx < self.tok_len:
+            self.current_tok = self.tokens[self.idx]
+        else:
+            self.current_tok = None
+    
+    def get_segment(self, start, endsegment_toks=["NEWLINE"]):
+        seg = []
+
+        if start > self.tok_len:
+            return []
+
+        i = start
+        while True:
+            tok = self.tokens[i]
+            seg.append(tok)
+            if tok.token_type == "EOF" or tok.token_type in endsegment_toks:
+                return seg
+            i += 1
+            if i > self.tok_len:
+                raise Exception("no EOF found!")
+
+
+    def parse(self):
+        self.tree.goto(self.entry_point)
+        return self._parse()
+
+    def explore_pattern(self, pattern, node):
+        node = pattern.get("node", node)
+        for i in pattern.keys():
+            if i == "node": continue
+            patt = pattern[i]
+            if isinstance(patt, str):
+                if patt.startswith("[") and patt.endswith("]"):
+                    branch = self.tree.get_branch()
+                    self.tree.goto(patt.replace("[", "").replace("]", ""))
+                    value, error = self._parse()
+                    self.tree.goto(branch)
+                    if error:
+                        return value, error
+                    if not value:
+                        return None, f"Expected: {patt}"
+
+                elif patt.startsith("<") and patt.endswith(">"):
+                    if not re.match(patt, self.current_tok.regex()):
+                        return None, f"Expected Token: {patt}"
+
+            elif isinstance(patt, dict):
+                # either a nested pattern
+                # or a pattern with a capture and/or quantifier
+                pass
+
+                
+                    
+    
+    def _parse(self):
+        global_node = self.tree.current_branch.get("node", None)
+        # ^ get global node if present
+
+        if patterns := self.tree.current_branch.get("patterns", None):
+            for key in patterns.keys():
+                node, error = self.explore_pattern(patterns[key], global_node)
+                if node or error:
+                    return node, error
+                
+                
+
+        else: # no patterns given (wierd)
+            raise Exception("rule has no patterns!")
+            
+        
+
+        return node, None
 
 import json
 def main():
@@ -1335,12 +1447,12 @@ def main():
     tree = lexBuild.build()
     
     
-    print(json.dumps(tree.tree, indent=2))
+    #print(json.dumps(tree.tree, indent=2))
     lexer = Lexer("<stdin>", "", tree)
     parseBuild = ParserBuilder(segments.ParserSegment)
     parseBuild.build()
 
-    #print(json.dumps(parseBuild.tree.tree, indent=2))
+    print(json.dumps(parseBuild.tree.tree, indent=2))
     #lexer = Lexer("test.txt", segments.CodeSegment, tree)
     #print(lexer.redirect_from_checks)
     #print(segments.CodeSegment)
@@ -1354,7 +1466,6 @@ def main():
         if cmd.strip() == "": continue
 
         lexer.reset("<stdin>", cmd)
-
         tokens, error = lexer.make_tokens()
 
         if error:
@@ -1362,7 +1473,16 @@ def main():
             continue
 
         print(tokens)
-            
+
+        parser = Parser(tokens, parseBuild)
+        nodes, error = parser.parse()
+
+        if error:
+            print(error)
+            continue
+        #print(nodes)
+
+        
 
     
 
