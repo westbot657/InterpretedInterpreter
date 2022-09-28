@@ -259,7 +259,7 @@ class LexerBuilder:
         return f"(((\\\\.)*[^{c}\\\\]*)*)"
     
     def parse_pattern(self, pattern:str) -> str:
-        idx = 0
+        #idx = 0
         escaped = False
         prev_chars = "" # ?...  \...
         result = ""
@@ -535,6 +535,7 @@ class Lexer:
         return self.idx + self.diff
     
     def ghost_advance(self, n=1):
+        #print(f"text-length:{self.text_len}")
         self.diff += n
         if self.gdx() < self.text_len:
             self.current_char = self.text[self.gdx()]
@@ -547,8 +548,18 @@ class Lexer:
     def ghost_reset(self):
         self.diff = self._diff
         self._diff = 0
-        self.current_char = self.text[self.idx]
+        if self.gdx() < self.text_len:
+            self.current_char = self.text[self.gdx()]
+        else:
+            self.current_char = None
 
+    def ghost_get(self):
+        return self.diff
+
+    def ghost_set(self, val):
+        self.ghost_reset()
+        self.ghost_advance(val)
+    
     def solidify(self):
         self.advance(self.diff)
         self.diff = 0
@@ -572,28 +583,36 @@ class Lexer:
             #print("exploring matches")
             value = None
             for pattern in matches.keys():
-                #print(f"testing {pattern=} against text: {self.text_from_real()}")
-                if m := re.match(pattern, self.text_from_real()):
+                #print(f"testing {pattern=} against text: {self.text_from_ghost()}")
+                if m := re.match(pattern, self.text_from_ghost()):
                     
                     pos_start = self.pos.copy()
                     m_rules = matches.get(pattern)
                     match_type = m_rules["type"] # either `hr-match`, `hc-match`, or `sr-match`
                     value = m.group()
                     #print(f"found a match!  {value=}")
+                    n = self.ghost_get()
                     self.ghost_advance(len(value))
+                    #print(f"\033[38;2;20;200;20midx={self.pos.index}  ghost-offset={n}\033[0m")
                     
                     if match_type == "sr-match" and not found_match:
                         #print("match is an sr-match")
                         soft_value = value, rules.get("value", False)
                         found_match = True
+                        #self.solidify()
+                        #break
                         continue
                     elif match_type == "hr-match":
                         #print("match is an hr-match")
                         found_match = True
                         #print(f"exploring in {m_rules=}")
-                        #self.ghost_reset()
+                        #self.solidify()
+                        self.ghost_reset() # <- uncommenting causes some kind of recursive loop that seems to not be able to hit the recursion limit
+                        #self.ghost_set(n)
                         val, err = self._explore_pattern(m_rules)
-                        #print(f"{val=}  {err=}")
+                        #self.solidify()
+                        #print(f"{value=}  {val=}  {err=}")
+                        
                         if err == "#no-value":
                             value = ""
                             val.token_value = None
@@ -601,23 +620,63 @@ class Lexer:
                         elif err == "#regex-value":
                             val.regex_value = True
                             err = None
-                        tok = value + val
+                        elif err == "plz advance":
+                            err = None
+                            if value:
+                                self.ghost_advance(len(value))
+                        elif err:
+                            #print("\033[38;2;255;0;0m<--here?\033[0m")
+                            #print(rules)
+                            #print("\033[38;2;255;0;0m<--here?\033[0m")
+                            
+                            if val_ := rules.get("value", None):
+                                if flags := rules.get("flags", None):
+                                    if "#no-value" in flags: value = None
+                                self.solidify()
+                                #print(f"value!! {value=}")
+                                if value:
+                                    self.ghost_advance(len(value))
+                                else:
+                                    self.ghost_advance()
+                                return Token(val_, value, pos_start, self.pos.copy()), None
+                            
+                            
+                            found_match = False
+                            return val, self.formatError(err)
+                        if val.token_value:
+                            tok = val
+                        else:
+                            tok = value+val
+
+                        #self.ghost_reset()
+                        
                         tok.pos_start = pos_start
+                        #self.solidify()
                         return tok, self.formatError(err)
 
                     elif match_type == "hc-match":
                         #print("match is an hc-match")
                         found_match = True
-                        self.solidify()
+                        #self.solidify()
                         #print(f"exploring {m_rules=}")
                         val, err = self._explore_pattern(m_rules)
-                        #print(f"{val=}  {err=}")
+                        
+                        #self.solidify()
+                        #print(f"{value=}  {val=}  {err=}")
 
+                        if err == "plz advance":
+                            err = None
+                            if value:
+                                self.ghost_advance(len(value))
+                            
                         if err:
                             if val_ := m_rules.get("value", None):
                                 if flags := m_rules.get("flags", None):
                                     if "#no-value" in flags: value = None
+                                self.solidify()
                                 return Token(val_, value, pos_start, self.pos.copy()), None
+                            #found_match = False
+                            self.ghost_reset()
                             return val, self.formatError(err)
 
                         tok = value + val
@@ -626,25 +685,49 @@ class Lexer:
                         flag = None
                         if flags := m_rules.get("flags", None):
                             flag = flags[0]
+                        self.solidify()
+                            
                         return tok, flag
 
             if soft_value:
                 val, tok_type = soft_value
                 #print(f"using soft-match: {val=}  {tok_type=}")
+                #self.solidify()
+                #print("soft value")
                 if tok_type is False:
                     return val, f"No Token Type Given for value: {val}"
+                self.solidify()
                 ps = self.pos.copy()
                 if val:
                     for l in val:
                         ps.advance(l)
                 return Token(tok_type, val, self.pos.copy(), ps), None
 
+            elif redirect := rules.get("redirect", None):
+                self.ghost_reset()
+                #print("REDIRECT")
+                target = redirect["target"]
+                error = redirect["error"]
+                val, err = self.explore_pattern(target, solidify=False)
+                if err:
+                    if error:
+                        return val, self.formatError(error)
+
+                else:
+                    self.solidify()
+                return val, self.formatError(err)
+            
             elif tok_type := rules.get("value", None):
+                #print(f"value?? {value=}")
                 self.solidify()
                 #print("\033[38;2;20;255;20msolidifying position!\033[0m")
-                #print(f"\033[38;2;200;30;30m'{self.text_from_real()}'\033[0m")
-                
-                return Token(tok_type, value, self.pos.copy(), self.pos.copy()), None
+                #print(f"\033[38;2;200;30;30m'{self.text_from_real()}'\n\n'{self.text_from_ghost()}'\033[0m")
+                pos_start = self.pos.copy()
+                # if value:
+                #     self.ghost_advance(len(value))
+                # else:
+                #     self.ghost_advance()
+                return Token(tok_type, value, pos_start, self.pos.copy()), "plz advance"
 
             else:
                 return None, "No Token Type Given!"
@@ -652,29 +735,39 @@ class Lexer:
         elif redirect := rules.get("redirect", None):
             target = redirect["target"]
             error = redirect["error"]
+            #print(f"redirect!\n{self.pos.index}\n{self.text_from_ghost()}")
+            
             self.ghost_reset()
-            val, err = self.explore_pattern(target)
+            #print(f"after ghost-reset: {self.text_from_ghost()}")
+            val, err = self.explore_pattern(target, False)
 
+            #print(f"{val=}  {err=}")
+            
             if err:
                 if error:
-                    return None, self.formatError(error, val)
+                    return None, self.formatError(error)
                 elif tok_type := rules.get("value", None):
+                    self.solidify()
                     return Token(tok_type, None, self.pos.copy(), self.pos.copy()), None
+                    
             return val, self.formatError(err)
 
         elif tok_type := rules.get("value", None):
+            #print("raw value")
+            self.solidify()
             return Token(tok_type, None, self.pos.copy(), self.pos.copy()), None
 
         else:
             return None, f"No Value Error: {self.pos.copy()}"
 
-    def explore_pattern(self, path):
+    def explore_pattern(self, path, solidify=True):
         self.tree.goto(path)
         rules = self.tree.current_branch
 
         #print(f"exploring '{path}'")
         ret = self._explore_pattern(rules)
-        self.solidify()
+        if solidify:
+            self.solidify()
         return ret
 
     def _explore_literal(self, branch):
@@ -697,6 +790,7 @@ class Lexer:
                 if err:
                     if error:
                         return val, self.formatError(error)
+                #print(f"{val=}, {err=}, {branch=}")
                 return val, self.formatError(err)
             elif key == "value":
                 #print(f"value = {branch[key]}")
@@ -711,12 +805,13 @@ class Lexer:
             return val, err
 
         else:
-            return char, "?InvalidCharacter"
+            return char, self.formatError("?InvalidCharacter")
     
     def make_tokens(self) -> list:
         tokens = []
 
         while self.current_char != None:
+            #print(f"\033[38;2;20;200;200m{self.pos.index=}   char={self.current_char}\033[0m")
             if self.current_char == " ":
                 self.advance()
                 continue
@@ -724,9 +819,11 @@ class Lexer:
             for check in self.checks:
                 if re.match(check, self.current_char):
                     val, err = self.explore_pattern(self.redirect_from_checks[check])
+                    
                     if err:
                         return val, self.formatError(err)
                     tokens.append(val)
+                    #self.advance()
                     break
             else:
                 val, err = self.explore_literal(self.current_char)
@@ -734,7 +831,9 @@ class Lexer:
                     return val, self.formatError(err)
                 tokens.append(val)
 
-                self.advance()
+                #self.advance()
+
+            #self.advance()
 
         tokens.append(Token("EOF", None, self.pos.copy(), self.pos.copy()))
 
@@ -839,55 +938,65 @@ using (...|...) works the same as regex
 
 """
 @Nodes
-Null
-Boolean(value)
-Body(statements)
-Return(value)
-Break
-Continue
-BinOp(left, op, right)
-UnaryOp(op, value)
-VarAssign(name, aliases, clamp, value)
-Clamp(types, nullable)
+NullNode
+BooleanNode(value)
+BodyNode(statements)
+ReturnNode(value)
+BreakNode
+ContinueNode
+BinOpNode(left, op, right)
+UnaryOpNode(op, value)
+VarAssignNode(name, aliases, clamp, value)
+ClampNode(types, nullable)
 
 @Parser
-statements:
-    Body | statements:[statement]+
+statements: BodyNode
+    | statements:[statement]*
 statement:
-    Return | <KEYWORD:return> value:[expr]?
-    Break | <KEYWORD:break>
-    Continue | <KEYWORD:continue>
+    ReturnNode | <KEYWORD:return> value:[expr]?
+    BreakNode | <KEYWORD:break>
+    ContinueNode | <KEYWORD:continue>
     | [expr]
 expr:
-    BinOp | left:[comp-expr] op:<(AND|OR)> right:[comp-expr]
+    BinOpNode | left:[comp-expr] op:<(AND|OR)> right:[comp-expr]
+    | [comp-expr]
 comp-expr:
-    UnaryOp | op:<NOT> value:[comp-expr]
-    BinOp | left:[arith-expr] op:<(EE|NE|GT|LT|GTE|LTE)> right:[arith-expr]
+    UnaryOpNode | op:<NOT> value:[comp-expr]
+    BinOpNode | left:[arith-expr] op:<(EE|NE|GT|LT|GTE|LTE)> right:[arith-expr]
+    | [arith-expr]
 arith-expr:
-    BinOp | left:[term] op:<(PLUS|MINUS)> right:[term]
-var-def: VarAssign
+    BinOpNode | left:[term] op:<(PLUS|MINUS)> right:[term]
+    | [term]
+var-def: VarAssignNode
     | <(VLINE|HASH|DOLLAR)>? name:<ID> (<ALIAS> aliases:<ID>)* <SEMICOLON>  #clamp:Clamp([],True) #value:Null
     | <(VLINE|HASH|DOLLAR)>? name:<ID> (<ALIAS> aliases:<ID>)* clamp:[clamp]? <EQ> value:[expr]
 """
 parser_struct = {
-    "statements": {},
+    "statements": {
+        "node": "Body",
+        "patterns": {
+            "0": {
+                "pattern": "[statement]",
+                "quantifier": "+",
+                "capture": "statements"
+            }
+        }
+    },
     "statement": {},
     "expr": {
         "patterns": {
             "0": {
-                "pattern": {
-                    "0": {
-                        "pattern": "[comp-expr]",
-                        "capture": "left"
-                    },
-                    "1": {
-                        "pattern": "<(AND|OR)>",
-                        "capture": "op"
-                    },
-                    "2": {
-                        "pattern": "[comp-expr]",
-                        "capture": "right"
-                    }
+                "0": {
+                    "pattern": "[comp-expr]",
+                    "capture": "left"
+                },
+                "1": {
+                    "pattern": "<(AND|OR)>",
+                    "capture": "op"
+                },
+                "2": {
+                    "pattern": "[comp-expr]",
+                    "capture": "right"
                 },
                 "node": "BinOp"
             }
@@ -933,14 +1042,12 @@ parser_struct = {
                     "capture": "name"
                 },
                 "2": {
-                    "pattern": {
-                        "0": {
-                            "pattern": "<ALIAS>"
-                        },
-                        "1": {
-                            "pattern": "<ID>",
-                            "capture": "aliases"
-                        }
+                    "0": {
+                        "pattern": "<ALIAS>"
+                    },
+                    "1": {
+                        "pattern": "<ID>",
+                        "capture": "aliases"
                     },
                     "quantifier": "*"
                 },
@@ -1146,7 +1253,7 @@ def main():
     tree = lexBuild.build()
     
     
-    #print(json.dumps(tree.tree, indent=2))
+    print(json.dumps(tree.tree, indent=2))
     lexer = Lexer("<stdin>", "", tree)
     parseBuild = ParserBuilder(segments.ParserSegment)
     parseBuild.build()

@@ -103,16 +103,16 @@ string:
   STRING
 ```
 `>-> pattern`  
-\^ checks if text from begining of previous-layer match matches the pattern  
+\^ causes nested patterns to start checking from the beginning of the match, instead of the end  
 ex:
 ```
 identifier:
-  >>> (if|elif|else|and|or|not|while|for)
-    >-> (and)
+  >-> (if|elif|else|and|or|not|while|for)
+    >>> (and)
       AND #no-value
-    >-> (or)
+    >>> (or)
       OR #no-value
-    >-> (not)
+    >>> (not)
       NOT #no-value
     KEYWORD
   >>> ([a-zA-Z_][a-zA-Z0-9_]*)
