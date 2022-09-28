@@ -3,21 +3,37 @@ import re
 
 
 class DebugPrint:
+    #__slots__ = ("name", "active", "color")
 
-    def __init__(self, name):
+    def __init__(self, name, r, g, b):
         self.name = name
         self.active = False
+        self.color = f"\033[38;2;{r};{g};{b}m"
+        self.disabled_ = []
 
-    def toggle(self):
-        self.active = not self.active
-
+    def toggle(self, x=None):
+        if x:
+            if x in self.disabled_:
+                self.disabled_.remove(x)
+            else:
+                self.disabled_.append(x)
+        else:
+            self.active = not self.active
+    
     def __call__(self, *args, **kwargs):
-        args = list(args)
+        if len(args) == 0: return
+        x = kwargs.get("x", None)
+        if x: kwargs.pop("x")
+        if self.active and (x == None or x not in self.disabled_):
+            args = list(args)
+            args.insert(0, f"{self.color}[{self.name}]\033[0m:")
+            print(*args, **kwargs)
+        if len(args) == 1:
+            return args[0]
+        else:
+            return tuple(args)
 
-        args.insert(0, f"\033[38;2;0;200;100m[{self.name}]\033[0m:")
-
-        print(*args, **kwargs)
-
+tprint = DebugPrint("Tree", 10, 200, 10)
 class Tree:
     def __init__(self, init={}):
         self.tree = init
@@ -30,6 +46,7 @@ class Tree:
         self.current_branch_str = path
         pieces = path.split("/-/")
         self.current_branch = self.tree
+        tprint(f"goto: '{path}'", x="movement")
         for p in pieces:
             if b := self.current_branch.get(p, None):
                 if not isinstance(b, dict):
@@ -40,38 +57,51 @@ class Tree:
                 self.current_branch = self.current_branch.get(p)
 
     def get_path(self):
-        if self.current_branch_str == "": return []
-        return self.current_branch_str.split("/-/")
+        if self.current_branch_str == "": x = []
+        x = self.current_branch_str.split("/-/")
+        tprint(f"get-path: '{'/-/'.join(x)}'")
+        return x
 
     def get_branch_name(self):
-        return self.get_path()[-1]
+        
+        tprint("get-branch-name: (next get-path last item)")
+        x = self.get_path()
+        if len(x) == 0: return ""
+        return x[-1]
     
     def into(self, path):
         if isinstance(path, str): path = path.split("/-/")
+        tprint(f"into: '{'/-/'.join(path)}'", x="movement")
         self.goto(self.get_path() + path)
 
     def into_raw(self, key):
+        tprint(f"into-raw: '{key}'", x="movement")
         self.current_branch = self.current_branch.get(key)
     
     def back_out(self):
         path = self.get_path()
+        tprint("back-out! (next goto)", x="movement")
         if len(path) > 1:
             path.pop(-1)
             self.goto(path)
 
     def set(self, key, value):
-        #print(f"Tree: setting '{key}' to: {value}")
+        tprint(f"setting '{key}' to: {value}", x="get/set")
         self.current_branch.update({key: value})
 
     def get(self, key):
+        tprint(f"get: getting '{key}' from current branch", x="get/set")
         return self.current_branch.get(key)
 
     def contains(self, key):
-        if key in self.current_branch.keys(): return True
-        return False
+        x = key in self.current_branch.keys()
+        tprint(f"contains: 'key' => {x}", x="get/set")
+        return x
     
     def into_set(self, key, value:dict):
+        tprint(f"into-set: valid value? {isinstance(value, dict)}")
         assert isinstance(value, dict)
+        
         self.set(key, value)
         self.into(key)
 
@@ -224,6 +254,7 @@ class Segmentor:
         if build:
             setattr(self, _segment, "\n".join(build))
 
+lbprint = DebugPrint("LexerBuilder", 200, 0, 50)
 
 class LexerBuilder:
 
@@ -234,6 +265,7 @@ class LexerBuilder:
     def parse_flags(self, raw:str) -> dict:
         flags = {}
         curr = raw
+        lbprint(f"parse-flags: '{raw}'", x="parse")
         while curr != "":
             if curr.startswith("#"): # this should always be true on first runthrough
                 curr = curr[1:]
@@ -247,6 +279,7 @@ class LexerBuilder:
                     flag_value = None
                     curr = curr.strip()
                 flags.update({flag_name: flag_value})
+        lbprint(f"parse-flags: {flags=}")
         return flags
 
     def _gen_pattern(self, char:str) -> str:
@@ -280,7 +313,7 @@ class LexerBuilder:
         escaped = False
         prev_chars = "" # ?...  \...
         result = ""
-
+        lbprint(f"parse-pattern: '{pattern}'", x="parse")
         for c in pattern:
             #print(f"----> {prev_chars=}")
             if len(prev_chars) > 4:
@@ -310,17 +343,14 @@ class LexerBuilder:
                 escaped = False
                 
             prev_chars += c
-            
-            
-
-        #print(f"prev chars is left as: {prev_chars}")
+        lbprint(f"parse-pattern: prev chars is left as: {prev_chars}", x="gen")
 
         if prev_chars.startswith("...") and len(prev_chars) == 4:
             v = prev_chars[3]
-            #print(f"generating pattern for '{v}'")
+            lbprint(f"parse-pattern: generating pattern for '{v}'", x="gen")
             result += self._gen_pattern(v) + v
             prev_chars = ""
-            #print(f"{prev_chars=}")
+            lbprint(f"parse-pattern: {prev_chars=}", x="gen")
         
         
         return result + prev_chars
@@ -447,6 +477,8 @@ class LexerBuilder:
                     
         return self.tree
 
+pprint = DebugPrint("Position", 255, 127, 0)
+#pprint.toggle()
 class Position:
     def __init__(self, index, column, line, file_name):
         self.index = index
@@ -455,14 +487,15 @@ class Position:
         self.file_name = file_name
 
     def advance(self, char=None):
+        pprint(f"advance: (1) idx:{self.index} col:{self.column} ln:{self.line} {char=}")
         self.index += 1
-
         self.column += 1
 
         if char == "\n":
             self.column = 0
             self.line += 1
 
+        pprint(f"advance: (2) idx:{self.index} col:{self.column} ln:{self.line}")
         return self
 
     def __repr__(self):
@@ -503,8 +536,8 @@ class Token:
         if isinstance(other, str):
             return Token(self.token_type, other + (self.token_value or ""), self.pos_start, self.pos_end, self.regex_value)
 
-lprint = DebugPrint("Lexer")
-lprint.toggle()
+lprint = DebugPrint("Lexer", 0, 200, 200)
+#lprint.toggle()
 class Lexer:
 
     def __init__(self, file_name, text, tree:Tree):
@@ -541,20 +574,23 @@ class Lexer:
         return f"{err_name}: failed to generate token{ft}"
     
     def advance(self, n=1):
-        self.idx += n
-        
-        if self.idx >= self.text_len:
-            self.current_char = None
-        else:
-            self.current_char = self.text[self.idx]
-
-        self.pos.advance(self.current_char)
+        while n >= 1:
+            self.pos.advance(self.current_char)
+            self.idx += 1
+            if self.idx >= self.text_len:
+                self.current_char = None
+            else:
+                self.current_char = self.text[self.idx]
+    
+            lprint(f"advance: {n=} text-length:{self.text_len}  current-char:{self.current_char}")
+            n -= 1
+            
 
     def gdx(self):
         return self.idx + self.diff
     
     def ghost_advance(self, n=1):
-        #print(f"text-length:{self.text_len}")
+        lprint(f"ghost-advance: {n=} text-length:{self.text_len}", x="ghost")
         self.diff += n
         if self.gdx() < self.text_len:
             self.current_char = self.text[self.gdx()]
@@ -562,9 +598,11 @@ class Lexer:
             self.current_char = None
 
     def ghost_save(self):
+        lprint("ghost-save", x="ghost")
         self._diff = self.diff
     
     def ghost_reset(self):
+        lprint("ghost-reset", x="ghost")
         self.diff = self._diff
         self._diff = 0
         if self.gdx() < self.text_len:
@@ -573,25 +611,31 @@ class Lexer:
             self.current_char = None
 
     def ghost_get(self):
+        lprint(f"ghost-get: {self.diff}", x="ghost")
         return self.diff
 
     def ghost_set(self, val):
+        lprint(f"ghost-set: {val}", x="ghost")
         self.ghost_reset()
         self.ghost_advance(val)
     
     def solidify(self):
+        lprint("solidify", x="ghost")
         self.advance(self.diff)
         self.diff = 0
         self._diff = 0
 
     def text_from_ghost(self, length=None):
+        x = self.gdx()
         if length:
-            length = self.gdx()+length
-        return self.text[self.gdx():length]
+            length = x+length
+        lprint(f"text-from-ghost: (up to 30 chars) '{self.text[x:x+30]}'", x="ghost")
+        return self.text[x:length]
         
     def text_from_real(self, length=None):
         if length:
             length = self.idx + length
+        lprint(f"text-from-real: (up to 30 chars) '{self.text[self.idx:self.idx+30]}'")
         return self.text[self.idx:length]
 
     def _explore_pattern(self, rules):
@@ -599,38 +643,38 @@ class Lexer:
         soft_value = None
         
         if matches := rules.get("matches", None):
-            lprint("exploring matches")
+            lprint("exploring matches", x="ep")
             value = None
             for pattern in matches.keys():
-                lprint(f"testing {pattern=} against text: {self.text_from_ghost()}")
+                lprint(f"testing {pattern=} against text: {self.text_from_ghost()}", x="ep")
                 if m := re.match(pattern, self.text_from_ghost()):
                     
                     pos_start = self.pos.copy()
                     m_rules = matches.get(pattern)
                     match_type = m_rules["type"] # either `hr-match`, `hc-match`, or `sr-match`
                     value = m.group()
-                    lprint(f"found a match!  {value=}")
+                    lprint(f"found a match!  {value=}", x="ep")
                     n = self.ghost_get()
                     self.ghost_advance(len(value))
-                    lprint(f"\033[38;2;20;200;20midx={self.pos.index}  ghost-offset={n}\033[0m")
+                    lprint(f"\033[38;2;20;200;20midx={self.pos.index}  ghost-offset={n}\033[0m", x="ep")
                     
                     if match_type == "sr-match" and not found_match:
-                        lprint("match is an sr-match")
+                        lprint("match is an sr-match", x="ep")
                         soft_value = value, rules.get("value", False)
                         found_match = True
                         #self.solidify()
                         #break
                         continue
                     elif match_type == "hr-match":
-                        lprint("match is an hr-match")
+                        lprint("match is an hr-match", x="ep")
                         found_match = True
-                        lprint(f"exploring in {m_rules=}")
+                        lprint(f"exploring in {m_rules=}", x="ep")
                         #self.solidify()
                         self.ghost_reset() # <- uncommenting causes some kind of recursive loop that seems to not be able to hit the recursion limit
                         #self.ghost_set(n)
                         val, err = self._explore_pattern(m_rules)
                         #self.solidify()
-                        lprint(f"{value=}  {val=}  {err=}")
+                        lprint(f"{value=}  {val=}  {err=}", x="ep")
                         
                         if err == "#no-value":
                             value = ""
@@ -644,15 +688,15 @@ class Lexer:
                             if value:
                                 self.ghost_advance(len(value))
                         elif err:
-                            lprint("\033[38;2;255;0;0m<--here?\033[0m")
-                            lprint(rules)
-                            lprint("\033[38;2;255;0;0m<--here?\033[0m")
+                            lprint("\033[38;2;255;0;0m<--here?\033[0m", x="ep")
+                            lprint(rules, x="ep")
+                            lprint("\033[38;2;255;0;0m<--here?\033[0m", x="ep")
                             
                             if val_ := rules.get("value", None):
                                 if flags := rules.get("flags", None):
                                     if "#no-value" in flags: value = None
                                 self.solidify()
-                                lprint(f"value!! {value=}")
+                                lprint(f"value!! {value=}", x="ep")
                                 if value:
                                     self.ghost_advance(len(value))
                                 else:
@@ -674,21 +718,22 @@ class Lexer:
                         return tok, self.formatError(err)
 
                     elif match_type == "hc-match":
-                        lprint("match is an hc-match")
+                        lprint("match is an hc-match", x="ep")
                         found_match = True
                         #self.solidify()
-                        lprint(f"exploring {m_rules=}")
+                        lprint(f"exploring {m_rules=}", x="ep")
                         val, err = self._explore_pattern(m_rules)
                         
                         #self.solidify()
-                        lprint(f"{value=}  {val=}  {err=}")
+                        lprint(f"{value=}  {val=}  {err=}", x="ep")
 
                         if err == "plz advance":
                             err = None
                             if value:
-                                self.ghost_advance(len(value))
+                                self.solidify()
+                                #self.ghost_advance(len(value))
                             
-                        if err:
+                        elif err:
                             if val_ := m_rules.get("value", None):
                                 if flags := m_rules.get("flags", None):
                                     if "#no-value" in flags: value = None
@@ -700,7 +745,7 @@ class Lexer:
 
                         tok = value + val
                         tok.pos_start = pos_start
-                        lprint(f"{tok=}")
+                        lprint(f"{tok=}", x="ep")
                         flag = None
                         if flags := m_rules.get("flags", None):
                             flag = flags[0]
@@ -710,9 +755,9 @@ class Lexer:
 
             if soft_value:
                 val, tok_type = soft_value
-                lprint(f"using soft-match: {val=}  {tok_type=}")
+                lprint(f"using soft-match: {val=}  {tok_type=}", x="ep")
                 #self.solidify()
-                lprint("soft value")
+                lprint("soft value", x="ep")
                 if tok_type is False:
                     return val, f"No Token Type Given for value: {val}"
                 self.solidify()
@@ -724,7 +769,7 @@ class Lexer:
 
             elif redirect := rules.get("redirect", None):
                 self.ghost_reset()
-                lprint("REDIRECT")
+                lprint("REDIRECT", x="ep")
                 target = redirect["target"]
                 error = redirect["error"]
                 val, err = self.explore_pattern(target, solidify=False)
@@ -738,9 +783,10 @@ class Lexer:
             
             elif tok_type := rules.get("value", None):
                 lprint(f"value?? {value=}")
-                self.solidify()
-                lprint("\033[38;2;20;255;20msolidifying position!\033[0m")
-                lprint(f"\033[38;2;200;30;30m'{self.text_from_real()}'\n\n'{self.text_from_ghost()}'\033[0m")
+                #self.solidify()
+                #lprint("\033[38;2;20;255;20msolidifying position!\033[0m", x="ep")
+                lprint(f"text-from-real: \033[38;2;200;30;30m'{self.text_from_real()}'\033[0m", x="ep")
+                lprint(f"text-from-ghost: \033[38;2;200;30;30m'{self.text_from_ghost()}'\033[0m")
                 pos_start = self.pos.copy()
                 # if value:
                 #     self.ghost_advance(len(value))
@@ -754,13 +800,13 @@ class Lexer:
         elif redirect := rules.get("redirect", None):
             target = redirect["target"]
             error = redirect["error"]
-            lprint(f"redirect!\n{self.pos.index}\n{self.text_from_ghost()}")
+            lprint(f"redirect!\n{self.pos.index}\n{self.text_from_ghost()}", x="ep")
             
             self.ghost_reset()
-            lprint(f"after ghost-reset: {self.text_from_ghost()}")
+            lprint(f"after ghost-reset: {self.text_from_ghost()}", x="ep")
             val, err = self.explore_pattern(target, False)
 
-            lprint(f"{val=}  {err=}")
+            lprint(f"{val=}  {err=}", x="ep")
             
             if err:
                 if error:
@@ -772,7 +818,7 @@ class Lexer:
             return val, self.formatError(err)
 
         elif tok_type := rules.get("value", None):
-            lprint("raw value")
+            lprint("raw value", x="ep")
             self.solidify()
             return Token(tok_type, None, self.pos.copy(), self.pos.copy()), None
 
@@ -783,7 +829,7 @@ class Lexer:
         self.tree.goto(path)
         rules = self.tree.current_branch
 
-        lprint(f"exploring '{path}'")
+        lprint(f"exploring '{path}'", x="ep")
         ret = self._explore_pattern(rules)
         if solidify:
             self.solidify()
@@ -791,34 +837,34 @@ class Lexer:
 
     def _explore_literal(self, branch):
         pos_start = self.pos.copy()
-        lprint(f"{self.current_char=}")
+        lprint(f"{self.current_char=}", x="el")
         self.ghost_advance()
         for key in branch.keys():
-            lprint(f"checking '{self.current_char}' against '{key}'")
+            lprint(f"checking '{self.current_char}' against '{key}'", x="el")
             if self.current_char == key:
-                lprint(f"exploring literal: '{self.current_char}'")
+                lprint(f"exploring literal: '{self.current_char}'", x="el")
                 val, err = self._explore_literal(branch[key])
                 return val, self.formatError(err)
             elif key == "redirect":
                 redirect = branch["redirect"]
                 target = redirect["target"]
                 error = redirect["error"]
-                lprint("ghost reset")
+                lprint("ghost reset", x="el")
                 self.ghost_reset()
                 val, err = self.explore_pattern(target)
                 if err:
                     if error:
                         return val, self.formatError(error)
-                lprint(f"{val=}, {err=}, {branch=}")
+                lprint(f"{val=}, {err=}, {branch=}", x="el")
                 return val, self.formatError(err)
             elif key == "value":
-                lprint(f"value = {branch[key]}")
+                lprint(f"value = {branch[key]}", x="el")
                 return Token(branch[key], None, pos_start, self.pos.copy()), None
     
     def explore_literal(self, char):
         self.tree.goto("literals")
         if branch := self.tree.current_branch.get(char, None):
-            lprint(f"exploring literal: '{char}'\n{branch=}")
+            lprint(f"exploring literal: '{char}'\n{branch=}", x="el")
             val, err = self._explore_literal(branch)
             self.solidify()
             return val, err
@@ -830,8 +876,9 @@ class Lexer:
         tokens = []
 
         while self.current_char != None:
-            lprint(f"\033[38;2;20;200;200m{self.pos.index=}   char={self.current_char}\033[0m")
+            lprint(f"\033[38;2;20;200;200m{self.pos.index=}   char={self.current_char}\033[0m", x="mt")
             if self.current_char == " ":
+                #self.solidify()
                 self.advance()
                 continue
                 
@@ -885,6 +932,7 @@ class Node:
         for node in cls._nodes:
             if node.name == name:
                 return node
+        return None
     
     def __init__(self, name, values:list):
         self.name = name
@@ -897,6 +945,7 @@ class Node:
     def __repr__(self):
         return str(self.values)
 
+nbprint = DebugPrint("NodeBuilder", 0, 50, 200)
 class NodeBuilder:
 
     def __init__(self, text):
@@ -905,14 +954,18 @@ class NodeBuilder:
     def build(self):
         for line_ in self.text.split("\n"):
             line = line_.strip()
-
+            if line == "": continue
+            nbprint(f"{line=}")
             if "(" in line:
                 name, vals = line.replace(")", "").split("(")
+                name = name.strip()
                 values = [v.strip() for v in vals.split(",")]
+                nbprint(f"new node: {name} ({', '.join(values)})")
 
             else:
                 name = line
                 values = []
+                nbprint(f"new node: {name}")
 
             Node(name, values)
         
@@ -1087,7 +1140,7 @@ parser_struct = {
     }
 }
 
-
+pbprint = DebugPrint("ParserBuilder", 200, 10, 200)
 class ParserBuilder:
 
     def __init__(self, text):
@@ -1146,12 +1199,15 @@ class ParserBuilder:
         #     comp = components[0]
         #     if (not re.match("\w+:", comp)) and (not comp.endswith(("?", "*", "+"))) and (not re.search("\\{\d+(,\d*)?\\}", comp)):
         #         return comp
+        pbprint(f"format-components: {components}", x="format")
         for comp in components:
             if isinstance(comp, list):
+                pbprint(f"format-components: component is a list: {comp}", x="format")
                 pattern.update({str(index): self.format_components(comp)})
                 
             elif isinstance(comp, str):
                 if comp.strip() == "": continue
+                pbprint(f"format-components: component is a string: {comp}", x="format")
                 if m := re.match("\w+:", comp):
                     temp = {}
                     name = m.group().replace(":", "")
@@ -1165,8 +1221,10 @@ class ParserBuilder:
                         temp.update({"quantifier": q})
                     temp.update({"pattern": patt, "capture": name})
                     pattern.update({str(index): temp})
+                    pbprint(f"format-components: set pattern:{index} to: {temp}", x="format")
 
                 elif comp.endswith(("?", "*", "+")) and comp not in ("?", "*", "+"):
+                    pbprint(f"format-components: component has a quantifier: '{comp}'", x="format")
                     pattern.update({
                         str(index): {
                             "pattern": comp[:-1],
@@ -1175,6 +1233,7 @@ class ParserBuilder:
                     })
 
                 elif m := re.search("\\{\d+(,\d*)?\\}$", comp) and not re.match("\\{\d+(,\d*)?\\}", comp):
+                    pbprint(f"format-components: components has a quantifier: '{comp}'", x="format")
                     pattern.update({
                         str(index): {
                             "pattern": comp.replace(m.group(), ""),
@@ -1183,14 +1242,17 @@ class ParserBuilder:
                     })
                 
                 elif comp in ("?", "*", "+"):
+                    pbprint(f"format-components: component is a quantifier: '{comp}'", x="format")
                     pattern[str(index-1)].update({"quantifier": comp})
                     index -= 1
 
                 elif re.match("\\{\d+(,\d*)?\\}", comp):
+                    pbprint(f"format-components: component is a quantifier: '{comp}'", x="format")
                     pattern[str(index-1)].update({"quantifier": comp})
                     index -= 1
                         
                 else:
+                    pbprint(f"format-components: set pattern:{index} to: '{comp}'", x="format")
                     pattern.update({str(index): comp})
 
             index += 1
@@ -1252,6 +1314,7 @@ class ParserBuilder:
                 
                 index += 1
 
+Pprint = DebugPrint("Parser", 0, 220, 220)
 class Parser:
 
     def __init__(self):
