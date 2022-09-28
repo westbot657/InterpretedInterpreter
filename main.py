@@ -1,6 +1,23 @@
 
 import re
 
+
+class DebugPrint:
+
+    def __init__(self, name):
+        self.name = name
+        self.active = False
+
+    def toggle(self):
+        self.active = not self.active
+
+    def __call__(self, *args, **kwargs):
+        args = list(args)
+
+        args.insert(0, f"\033[38;2;0;200;100m[{self.name}]\033[0m:")
+
+        print(*args, **kwargs)
+
 class Tree:
     def __init__(self, init={}):
         self.tree = init
@@ -486,6 +503,8 @@ class Token:
         if isinstance(other, str):
             return Token(self.token_type, other + (self.token_value or ""), self.pos_start, self.pos_end, self.regex_value)
 
+lprint = DebugPrint("Lexer")
+lprint.toggle()
 class Lexer:
 
     def __init__(self, file_name, text, tree:Tree):
@@ -580,38 +599,38 @@ class Lexer:
         soft_value = None
         
         if matches := rules.get("matches", None):
-            #print("exploring matches")
+            lprint("exploring matches")
             value = None
             for pattern in matches.keys():
-                #print(f"testing {pattern=} against text: {self.text_from_ghost()}")
+                lprint(f"testing {pattern=} against text: {self.text_from_ghost()}")
                 if m := re.match(pattern, self.text_from_ghost()):
                     
                     pos_start = self.pos.copy()
                     m_rules = matches.get(pattern)
                     match_type = m_rules["type"] # either `hr-match`, `hc-match`, or `sr-match`
                     value = m.group()
-                    #print(f"found a match!  {value=}")
+                    lprint(f"found a match!  {value=}")
                     n = self.ghost_get()
                     self.ghost_advance(len(value))
-                    #print(f"\033[38;2;20;200;20midx={self.pos.index}  ghost-offset={n}\033[0m")
+                    lprint(f"\033[38;2;20;200;20midx={self.pos.index}  ghost-offset={n}\033[0m")
                     
                     if match_type == "sr-match" and not found_match:
-                        #print("match is an sr-match")
+                        lprint("match is an sr-match")
                         soft_value = value, rules.get("value", False)
                         found_match = True
                         #self.solidify()
                         #break
                         continue
                     elif match_type == "hr-match":
-                        #print("match is an hr-match")
+                        lprint("match is an hr-match")
                         found_match = True
-                        #print(f"exploring in {m_rules=}")
+                        lprint(f"exploring in {m_rules=}")
                         #self.solidify()
                         self.ghost_reset() # <- uncommenting causes some kind of recursive loop that seems to not be able to hit the recursion limit
                         #self.ghost_set(n)
                         val, err = self._explore_pattern(m_rules)
                         #self.solidify()
-                        #print(f"{value=}  {val=}  {err=}")
+                        lprint(f"{value=}  {val=}  {err=}")
                         
                         if err == "#no-value":
                             value = ""
@@ -625,15 +644,15 @@ class Lexer:
                             if value:
                                 self.ghost_advance(len(value))
                         elif err:
-                            #print("\033[38;2;255;0;0m<--here?\033[0m")
-                            #print(rules)
-                            #print("\033[38;2;255;0;0m<--here?\033[0m")
+                            lprint("\033[38;2;255;0;0m<--here?\033[0m")
+                            lprint(rules)
+                            lprint("\033[38;2;255;0;0m<--here?\033[0m")
                             
                             if val_ := rules.get("value", None):
                                 if flags := rules.get("flags", None):
                                     if "#no-value" in flags: value = None
                                 self.solidify()
-                                #print(f"value!! {value=}")
+                                lprint(f"value!! {value=}")
                                 if value:
                                     self.ghost_advance(len(value))
                                 else:
@@ -655,14 +674,14 @@ class Lexer:
                         return tok, self.formatError(err)
 
                     elif match_type == "hc-match":
-                        #print("match is an hc-match")
+                        lprint("match is an hc-match")
                         found_match = True
                         #self.solidify()
-                        #print(f"exploring {m_rules=}")
+                        lprint(f"exploring {m_rules=}")
                         val, err = self._explore_pattern(m_rules)
                         
                         #self.solidify()
-                        #print(f"{value=}  {val=}  {err=}")
+                        lprint(f"{value=}  {val=}  {err=}")
 
                         if err == "plz advance":
                             err = None
@@ -681,7 +700,7 @@ class Lexer:
 
                         tok = value + val
                         tok.pos_start = pos_start
-                        #print(f"{tok=}")
+                        lprint(f"{tok=}")
                         flag = None
                         if flags := m_rules.get("flags", None):
                             flag = flags[0]
@@ -691,9 +710,9 @@ class Lexer:
 
             if soft_value:
                 val, tok_type = soft_value
-                #print(f"using soft-match: {val=}  {tok_type=}")
+                lprint(f"using soft-match: {val=}  {tok_type=}")
                 #self.solidify()
-                #print("soft value")
+                lprint("soft value")
                 if tok_type is False:
                     return val, f"No Token Type Given for value: {val}"
                 self.solidify()
@@ -705,7 +724,7 @@ class Lexer:
 
             elif redirect := rules.get("redirect", None):
                 self.ghost_reset()
-                #print("REDIRECT")
+                lprint("REDIRECT")
                 target = redirect["target"]
                 error = redirect["error"]
                 val, err = self.explore_pattern(target, solidify=False)
@@ -718,10 +737,10 @@ class Lexer:
                 return val, self.formatError(err)
             
             elif tok_type := rules.get("value", None):
-                #print(f"value?? {value=}")
+                lprint(f"value?? {value=}")
                 self.solidify()
-                #print("\033[38;2;20;255;20msolidifying position!\033[0m")
-                #print(f"\033[38;2;200;30;30m'{self.text_from_real()}'\n\n'{self.text_from_ghost()}'\033[0m")
+                lprint("\033[38;2;20;255;20msolidifying position!\033[0m")
+                lprint(f"\033[38;2;200;30;30m'{self.text_from_real()}'\n\n'{self.text_from_ghost()}'\033[0m")
                 pos_start = self.pos.copy()
                 # if value:
                 #     self.ghost_advance(len(value))
@@ -735,13 +754,13 @@ class Lexer:
         elif redirect := rules.get("redirect", None):
             target = redirect["target"]
             error = redirect["error"]
-            #print(f"redirect!\n{self.pos.index}\n{self.text_from_ghost()}")
+            lprint(f"redirect!\n{self.pos.index}\n{self.text_from_ghost()}")
             
             self.ghost_reset()
-            #print(f"after ghost-reset: {self.text_from_ghost()}")
+            lprint(f"after ghost-reset: {self.text_from_ghost()}")
             val, err = self.explore_pattern(target, False)
 
-            #print(f"{val=}  {err=}")
+            lprint(f"{val=}  {err=}")
             
             if err:
                 if error:
@@ -753,7 +772,7 @@ class Lexer:
             return val, self.formatError(err)
 
         elif tok_type := rules.get("value", None):
-            #print("raw value")
+            lprint("raw value")
             self.solidify()
             return Token(tok_type, None, self.pos.copy(), self.pos.copy()), None
 
@@ -764,7 +783,7 @@ class Lexer:
         self.tree.goto(path)
         rules = self.tree.current_branch
 
-        #print(f"exploring '{path}'")
+        lprint(f"exploring '{path}'")
         ret = self._explore_pattern(rules)
         if solidify:
             self.solidify()
@@ -772,34 +791,34 @@ class Lexer:
 
     def _explore_literal(self, branch):
         pos_start = self.pos.copy()
-        #print(f"{self.current_char=}")
+        lprint(f"{self.current_char=}")
         self.ghost_advance()
         for key in branch.keys():
-            #print(f"checking '{self.current_char}' against '{key}'")
+            lprint(f"checking '{self.current_char}' against '{key}'")
             if self.current_char == key:
-                #print(f"exploring literal: '{self.current_char}'")
+                lprint(f"exploring literal: '{self.current_char}'")
                 val, err = self._explore_literal(branch[key])
                 return val, self.formatError(err)
             elif key == "redirect":
                 redirect = branch["redirect"]
                 target = redirect["target"]
                 error = redirect["error"]
-                #print("ghost reset")
+                lprint("ghost reset")
                 self.ghost_reset()
                 val, err = self.explore_pattern(target)
                 if err:
                     if error:
                         return val, self.formatError(error)
-                #print(f"{val=}, {err=}, {branch=}")
+                lprint(f"{val=}, {err=}, {branch=}")
                 return val, self.formatError(err)
             elif key == "value":
-                #print(f"value = {branch[key]}")
+                lprint(f"value = {branch[key]}")
                 return Token(branch[key], None, pos_start, self.pos.copy()), None
     
     def explore_literal(self, char):
         self.tree.goto("literals")
         if branch := self.tree.current_branch.get(char, None):
-            #print(f"exploring literal: '{char}'\n{branch=}")
+            lprint(f"exploring literal: '{char}'\n{branch=}")
             val, err = self._explore_literal(branch)
             self.solidify()
             return val, err
@@ -811,7 +830,7 @@ class Lexer:
         tokens = []
 
         while self.current_char != None:
-            #print(f"\033[38;2;20;200;200m{self.pos.index=}   char={self.current_char}\033[0m")
+            lprint(f"\033[38;2;20;200;200m{self.pos.index=}   char={self.current_char}\033[0m")
             if self.current_char == " ":
                 self.advance()
                 continue
