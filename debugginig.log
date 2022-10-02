@@ -1,0 +1,20 @@
+[statements]
+    [statement]
+        [expr]
+            [comp-expr] * 2
+                [arith-expr] * 2
+                    [term] * 2
+                        [factor] * 2
+                            [bitswap] * 1
+                                [power] * 2
+                                    [call] * 2
+                                        [atom] * 2
+                                            <INT>
+                                            <FLOAT>
+                                            <BASENUM>
+                                            <BOOLEAN>
+                                            <NULL>
+                                            [class-def]
+                                            [var-def]
+                                            [func-def]
+                                            [import-expr]

@@ -64,8 +64,8 @@ class Tree:
                 self.current_branch.update({p: {}})
                 self.current_branch = self.current_branch.get(p)
 
-        if self.get_branch_name() == "func-def" and self.locked:
-            input()
+        # if self.get_branch_name() == "class-def" and self.locked:
+        #     input()
     
     def lock(self):
         self.locked = True
@@ -501,7 +501,7 @@ class Position:
         self.file_name = file_name
 
     def advance(self, char=None):
-        pprint(f"advance: (1) idx:{self.index} col:{self.column} ln:{self.line} {char=}")
+        pprint(f"[{id(self)}] advance: (1) idx:{self.index} col:{self.column} ln:{self.line} {char=}")
         self.index += 1
         self.column += 1
 
@@ -509,7 +509,7 @@ class Position:
             self.column = 0
             self.line += 1
 
-        pprint(f"advance: (2) idx:{self.index} col:{self.column} ln:{self.line}")
+        pprint(f"[{id(self)}] advance: (2) idx:{self.index} col:{self.column} ln:{self.line}")
         return self
 
     def __repr__(self):
@@ -920,7 +920,7 @@ class Lexer:
         return tokens, None
 
 Nprint = DebugPrint("Node", 0, 255, 255)
-Nprint.toggle()
+#Nprint.toggle()
 class Node:
     _nodes = []
 
@@ -1341,7 +1341,7 @@ class ParserBuilder:
 
 
 Qprint = DebugPrint("Quantifier", 255, 255, 20)
-Qprint.toggle()
+#Qprint.toggle()
 class Quantifier:
 
     def __init__(self, quant=None):
@@ -1376,28 +1376,28 @@ class Quantifier:
             self.next()
             if self.max_val == -1:
                 if self.current < self.min_val:
-                    Qprint(f"check: need more values! min:{self.min_val} current:{self.current}", x="check")
+                    Qprint(f"[{id(self)}] check: need more values! min:{self.min_val} current:{self.current}", x="check")
                     return "need"
-                Qprint(f"check: valid value! min:{self.min_val} current:{self.current}", x="check")
+                Qprint(f"[{id(self)}] check: valid value! min:{self.min_val} current:{self.current}", x="check")
                 return "valid"
                 
             elif self.current == self.max_val:
-                Qprint(f"check: max values reached! {self.min_val}<={self.current}<={self.max_val}", x="check")
+                Qprint(f"[{id(self)}] check: max values reached! {self.min_val}<={self.current}<={self.max_val}", x="check")
                 return "done"
 
             elif self.current > self.max_val:
-                Qprint(f"check: max values exceeded!? max:{self.max_val} current:{self.current}", x="check")
+                Qprint(f"[{id(self)}] check: max values exceeded!? max:{self.max_val} current:{self.current}", x="check")
                 raise Exception("quantifier went over!")
 
         else:
             if self.current < self.min_val:
-                Qprint(f"check: not enough values! current:{self.current} min:{self.min_val}", x="check")
+                Qprint(f"[{id(self)}] check: not enough values! current:{self.current} min:{self.min_val}", x="check")
                 return "not-enough"
-            Qprint(f"check: quantifier satisfied! {self.min_val}<={self.current} max:{self.max_val}", x="check")
+            Qprint(f"[{id(self)}] check: quantifier satisfied! {self.min_val}<={self.current} max:{self.max_val}", x="check")
             return "done"
 
     def next(self):
-        Qprint("next")
+        Qprint(f"[{id(self)}] next")
         self.current += 1
 
     def valid(self):
@@ -1414,11 +1414,11 @@ class Quantifier:
 
 
 Pprint = DebugPrint("Parser", 0, 220, 220)
-Pprint.toggle()
+#Pprint.toggle()
 class Parser:
 
     def __init__(self, tokens, builder):
-        self.tree = builder.tree
+        self.tree: Tree = builder.tree
         self.tree.lock() # locking the tree stops goto from creating new branches
         self.entry_point = builder.entry_point
         self.tokens = tokens
@@ -1435,33 +1435,45 @@ class Parser:
         return self.idx + self.diff
 
     def advance(self, n=1):
-        Pprint(f"advance: {n=}", x="advance")
+        Pprint(f"advance: {n=}  current-token:{self.current_tok}", x="advance")
         while n >= 1:
             self.idx += 1
             if self.idx < self.tok_len:
                 self.current_tok = self.tokens[self.idx]
             else:
-                self.current_tok = None
+                self.current_tok = self.tokens[-1] # this item should be EOF
             n -= 1
+        Pprint(f"advance: current-token changed to: {self.current_tok}", x="advance")
 
     def ghost_advance(self, n=1):
-        Pprint(f"ghost-advance: {n=}", x="ghost")
+        Pprint(f"ghost-advance: {n=}  current-token:{self.current_tok}", x="ghost")
         self.diff += n
         if self.idx + self.diff < self.tok_len:
             self.current_tok = self.tokens[self.idx + self.diff]
         else:
-            self.current_tok = None
+            self.current_tok = self.tokens[-1] # < EOF
+        Pprint(f"ghost-advance: current-token changed to: {self.current_tok}", x="ghost")
 
     def ghost_save(self):
         self.ghost_stack.insert(0, self.diff)
+        Pprint(f"ghost-save: stack:{self.ghost_stack}", x="ghost", c=(255,127,0))
     
+    def ghost_unsave(self):
+        if len(self.ghost_stack) > 0:
+            self.ghost_stack.pop(0)
+
+        Pprint(f"ghost-unsave: stack:{self.ghost_stack}", x="ghost", c=(255,127,0))
+
     def ghost_reset(self):
-        Pprint("ghost-reset", x="ghost")
+        Pprint(f"ghost-reset: current-token:{self.current_tok}", x="ghost")
         self.diff = self.ghost_stack.pop(0) if len(self.ghost_stack) > 0 else 0
-        if self.idx < self.tok_len:
-            self.current_tok = self.tokens[self.idx]
+        if self.gdx() < self.tok_len:
+            self.current_tok = self.tokens[self.gdx()]
         else:
-            self.current_tok = None
+            self.current_tok = self.tokens[-1] # < EOF
+
+        Pprint(f"ghost-reset: current-token changed to: {self.current_tok}", x="ghost")
+        Pprint(f"ghost-reset: stack:{self.ghost_stack}", x="ghost", c=(255,127,0))
 
     def solidify(self):
         Pprint("solidify!", x="ghost")
@@ -1533,18 +1545,25 @@ class Parser:
     def explore_pattern(self, pattern, node):
         node = pattern.get("node", None) or node
         node_captures = {}
+        set_values = {}
+
+        if self.tree.get_branch_name() in ["var-def", "alias"] and self.current_tok.token_type == "EQ":
+            pass
 
         if not self.current_tok:
-            return None, None, "EOF"
+            return None, "EOF", "EOF"
         if self.current_tok.token_type == "EOF":
-            return None, None, "EOF"
+            return None, "EOF", "EOF"
         
         Pprint(f"exp-pattern: {node=}", x="exp")
         if set_vals := pattern.get("set-value", None):
             for key in set_vals:
                 _node = self.parse_node(set_vals[key])
                 Pprint(f"set-val: '{key}': {_node}", x="exp")
+                set_values.update({key: _node})
 
+        self.ghost_save() # 0 -> []  =>  0  [0]
+        #do_unsave = True
         for i in list(pattern.keys()): # iterate through portions of a pattern
             Pprint(f"iteration key: '{i}'", x="exp")
             if i == "node": continue
@@ -1560,26 +1579,36 @@ class Parser:
                     self.tree.goto(patt.replace("[", "").replace("]", ""))
                     Pprint(f"moved to branch: '{'/-/'.join(self.tree.get_path())}', parsing", c=(0,255,255))
                     Pprint(f"contents of branch: {self.tree.current_branch}", c=(200,200,0))
+                    #self.ghost_save()
                     value, error, eof = self._parse()
-                    if eof: return value, error, eof
+                    #if eof: return value, error, eof
                     
                     Pprint(f"returning to branch: '{'/-/'.join(branch)}'")
                     self.tree.goto(branch)
                     Pprint(f"{value=}  {error=}")
                     if error:
+                        self.ghost_reset() # X<-[0]  =>  0  []
+                        #self.ghost_unsave()
                         return value, error, None
                     if not value:
+                        self.ghost_reset() # X<-[0]  =>  0  []
+                        #self.ghost_unsave()
                         return None, f"Expected: {patt}", None
+                    #self.ghost_unsave()
                     # if value is present, then nothing needs to be done
 
                 elif patt.startswith("<") and patt.endswith(">"):
-                    if not self.current_tok:
-                        return None, None, "EOF"
-                    if self.current_tok.token_type == "EOF":
-                        return None, None, "EOF"
+                    # if not self.current_tok:
+                    #     return None, "EOF", "EOF"
+                    # if self.current_tok.token_type == "EOF":
+                    #     return None, "EOF", "EOF"
                     Pprint(f"testing: '{self.current_tok.regex()}' against pattern: '{patt}'", c=(255,0,0))
                     if not re.match(patt, self.current_tok.regex()):
+                        #self.ghost_reset() # X<-[0]  =>  0  []
+                        self.ghost_unsave()
                         return None, f"Expected Token: {patt}", None
+                    
+                    self.ghost_advance() # X+=1  [0]
 
             elif isinstance(patt, dict):
                 # either a nested pattern
@@ -1595,6 +1624,7 @@ class Parser:
                         branch = self.tree.get_path()
                         Pprint(f"saving branch: '{'/-/'.join(branch)}'")
                         do_loop = True
+                        self.ghost_save() # 1->[0]  =>  1  [1, 0]
                         while do_loop:
                             self.tree.goto(pat.replace("[", "").replace("]", ""))
                             Pprint(f"moving to branch: '{pat.replace('[', '').replace(']', '')}'")
@@ -1603,7 +1633,7 @@ class Parser:
                             Pprint(f"returning to branch: '{'/-/'.join(branch)}'", c=(255,255,0))
                             self.tree.goto(branch)
                             Pprint(f"{value=}  {error=}  {eof=}")
-                            if eof: return value, error, eof
+                            #if eof: return value, error, eof
                             # if error:
                             #     return value, error
                             if value and capture:
@@ -1611,71 +1641,91 @@ class Parser:
 
                             #quantifier.next()
                             state = quantifier.check(value)
-                            if value:
-                                self.ghost_advance()
+                            # if value: # this is a sub-rule, rules advance at the end automatically
+                            #     self.ghost_advance()
                             if state == "done":
-                                self.ghost_save()
+                                #self.ghost_save()
                                 #self.solidify()
+                                self.ghost_unsave() # 2  [1, 0]  =>  2  [0]
                                 break
                                 #return value, error # quantifier has reached an end
                             elif state in ["need", "valid"]:
                                 pass # continue iterating
                             elif state == "not-enough":
-                                self.ghost_reset()
-                                
+                                self.ghost_reset() # 2<-[1,0]  =>  1  [0]
+                                self.ghost_reset() # 1<-[0]  =>  0  []
                                 return value, f"Expected: {pat}", None # quantifier did not recieve enough values
 
                         #if not do_loop: break
                         
                         if not quantifier.valid():
+                            self.ghost_reset() # 2<-[0]  =>  0  []
                             return None, quantifier.get_err(), None
                         if capture:
-                            node_captures.update({capture: captures})
+                            if len(captures) == 0:
+                                node_captures.update({capture: set_values.get(capture, None)})
+                            elif len(captures) == 1:
+                                node_captures.update({capture: captures[0]})
+                            else:
+                                node_captures.update({capture: captures})
+
+                        # 2  [0]
                             
                     elif pat.startswith("<") and pat.endswith(">"):
                         do_loop = True
+                        self.ghost_save() # 1->[0]  =>  1  [1, 0]
                         while do_loop:
-                            if not self.current_tok:
-                                return None, None, "EOF"
-
-                            if self.current_tok.token_type == "EOF":
-                                return None, None, "EOF"
+                            # if not self.current_tok:
+                            #     return None, "EOF", "EOF"
+                            # if self.current_tok.token_type == "EOF":
+                            #     return None, "EOF", "EOF"
 
                             Pprint(f"testing: '{self.current_tok.regex()}' against pattern: '{pat}'", c=(255,0,0))
                             value = re.match(pat, self.current_tok.regex())
-                            if value: value = value.group()
+                            if value:
+                                value = value.group()
+
+                                if capture:
+                                    captures.append(self.current_tok)
+
 
                             #quantifier.next()
                             state = quantifier.check(value)
                             if value:
-                                self.ghost_advance()
+                                self.ghost_advance() # X+=1  [1, 0]
+
                             if state == "done":
                                 #self.solidify()
-                                self.ghost_save()
+                                #self.ghost_save()
+                                self.ghost_unsave() # 2  [1, 0]  =>  2  [0]
                                 break
                                 #return value, None
                             elif state in ["need", "valid"]:
                                 pass
                             elif state == "not-enough":
-                                self.ghost_reset()
+                                self.ghost_reset() # 2<-[1, 0]  =>  1  [0] # reset to before while loop
+                                self.ghost_reset() # 1<-[0]  =>  0  []     # reset to beginning of pattern
                                 return value, f"Expected: {pat}", None
 
                         #if not do_loop: break
                         
                         if not quantifier.valid():
+                            self.ghost_reset() # 2<-[0]  =>  0  []
                             return None, quantifier.get_err(), None
                         if capture:
                             node_captures.update({capture: captures})
+
+                        # 2  [0]
 
                 else:
                     Pprint(f"Exploring sub-pattern: {patt}")
 
                     q = Quantifier(patt.get("quantifier", None))
                     values = []
-                    
+                    self.ghost_save() # 1->[0]  =>  1  [1, 0]
                     while True:
                         val, err, eof = self.explore_pattern(patt, node)
-                        if eof: return val, err, eof
+                        #if eof: return val, err, eof
 
                         # if err:
                         #     return err
@@ -1688,17 +1738,22 @@ class Parser:
                         if state == "done":
                             if capture := patt.get("capture", None):
                                 node_captures.update({capture: values})
+                            self.ghost_unsave() # 2  [1, 0]  =>  2  [0]
                             break
 
                         elif state in ["need", "valid"]:
                             pass
 
                         elif state == "not-enough":
+                            self.ghost_reset() # 2<-[1, 0]  =>  1  [0] # reset to before this while loop
+                            self.ghost_reset() # 1<-[0]  =>  0  []     # reset to before the entire pattern
                             return value, err, None
 
                     if not q.valid():
+                        self.ghost_reset() # 2<-[0]  =>  0  []
                         return None, q.get_err(), None
                         
+                    # 2  [0]
                     
                     #if val or err:
                     #    return val, err
@@ -1719,6 +1774,9 @@ class Parser:
 
         # Value, Error = None, None
 
+        self.ghost_unsave() # 3  [0]  =>  3  []
+        # if self.current_tok.token_type in ["INT", "EOF"]:
+        #     pass
         Pprint(f"{node=}  {node_captures=}")
         return Node.get(node)(**node_captures), None, None
     
@@ -1736,7 +1794,7 @@ class Parser:
                 Pprint(f"_parse: {key=}  rules: {patterns[key]}")
                 node, error, eof = self.explore_pattern(patterns[key], global_node)
                 Pprint(f"_parse: {node=}  {error=}  {eof=}")
-                if node or eof:
+                if node:# or eof:
                     return node, error, eof
 
             if error:
