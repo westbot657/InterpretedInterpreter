@@ -131,14 +131,35 @@ EmptyNode
 NullNode
 BinOpNode(left, op, right)
 UnaryOpNode(op, value)
+BodyNode(statements)
+ReturnNode(value)
+IntegerNode(value)
+FloatNode(value)
+BasenumNode(value)
+BooleanNode(value)
+ContinueNode
+BreakNode
+
+ImportNode(target, sub_import, module)
+NameNode(values)
+AliasNode(values)
+ClassDefNode(mod, name, inheret, body)
+FuncDefNode(mod, name, clamp, args, body)
+VarAssignNode(mod, name, clamp, value)
+VarAccessNode(name)
+CallNode(name, args)
+ModNode(mods)
 
 @Parser
 #!entry-point: statements
 
-statements:
-    BodyNode | statements:[statement]*
+statements: BodyNode
+    | <(SEMICOLON|NEWLINE)>* statements:[statement]*  #statements:EmptyNode
 statement:
-    | 
+    ReturnNode | <KEYWORD:return> value:[expr]? <(SEMICOLON|NEWLINE)>*  #value:NullNode
+    ContinueNode | <KEYWORD:continue> <(SEMICOLON|NEWLINE)>*
+    BreakNode | <KEYWORD:break> <(SEMICOLON|NEWLINE)>*
+    | [expr] <(SEMICOLON|NEWLINE)>*
 expr:
     BinOpNode | left:[comp-expr] op:<(AND|OR)> right:[comp-expr]
     | [comp-expr]
@@ -153,7 +174,7 @@ term:
     BinOpNode | left:[factor] op:<(MUL|DIV|FLOOR|MODULO)> right:[factor]
     | [factor]
 bitswap:
-    | [power] <(QMARK|TILDE)> [power]
+    BinOpNode | left:[power] op:<(QMARK|TILDE)> right:[power]
     | [power]
 factor:
     UnaryOpNode | op:<(PLUS|MINUS)> value:[factor]
@@ -162,19 +183,51 @@ power:
     BinOpNode | left:[call] op:<(POW|ROOT)> right:[factor]
     | [call]
 call:
-    | [atom] <LPAREN> [pass-args]* <RPAREN>
+    CallNode | name:[atom] <LPAREN> args:[pass-args]* <RPAREN>  #args:EmptyNode
     | [atom]
 atom:
-    | <INT>
-    | <FLOAT>
-    | <BASENUM>
-    | <BOOLEAN>
-    | <NULL>
+    IntegerNode | value:<INT>
+    FloatNode | value:<FLOAT>
+    BasenumNode | value:<BASENUM>
+    BooleanNode | value:<BOOLEAN>
+    NullNode | <NULL>
+    | [class-def]
+    | [var-def]
+    | [func-def]
+    | [import-expr]
+
 import-expr: ImportNode
-    | <IMPORT> sub_import:<ID> <IMPORT> module:<ID>  #target:NullNode
-    | <IMPORT> module:<ID>  #sub_import:NullNode #target:NullNode
-    | target:<ID> <IMPORT> sub_import:<ID> <IMPORT> module:<ID>
+    | <IMPORT> sub_import:[name] <IMPORT> module:[name]  #target:NullNode
+    | <IMPORT> module:[name]  #sub_import:NullNode #target:NullNode
+    | target:[names] <IMPORT> sub_import:<ID> <IMPORT> module:<ID>
+
+mods: ModNode
+    | mods:<DOLLAR> mods:<HASH> mods:<VLINE>
+    | mods:<HASH> mods:<VLINE> mods:<DOLLAR>
+    | mods:<VLINE> mods:<DOLLAR> mods:<HASH>
+    | mods:<DOLLAR> mods:<VLINE> mods:<HASH>?
+    | mods:<HASH> mods:<DOLLAR> mods:<VLINE>?
+    | mods:<VLINE> mods:<HASH> mods:<DOLLAR>?
+    | mods:<DOLLAR> mods:<HASH>?
+    | mods:<HASH> mods:<VLINE>?
+    | mods:<VLINE> mods:<DOLLAR>?
     
+name: NameNode
+    | values:<ID> (<DOT> values:<ID>)*
+
+names: AliasNode
+    | values:[name] (<BACKSLASH> values:[name])*
+
+alias: AliasNode
+    | values:<ID> (<BACKSLASH> values:<ID>)*
+
+class-def: ClassDefNode
+    | mod:[mods]? <CLASSDEF> name:[alias] (<LT> inheret:[names] <GT>)? <LBRACKET> body:[statements] <RBRACKET>  #inheret:EmptyNode #mod:EmptyNode
+func-def: FuncDefNode
+    | mod:[mods]? <FUNCDEF> name:[alias] (<LT> clamp:[names] <GT>)? <LPAREN> args:[args]* <RPAREN> <RARROW> <LBRACKET> body:[statements] <RBRACKET>  #clamp:EmptyNode #mod:EmptyNode
+var-def: VarAssignNode
+    | mod:[mods]? name:[alias] (<LT> clamp:[names] <GT>)? <EQ> value:[expr] <SEMICOLON>?  #clamp:EmptyNode #mod:EmptyNode
+    | mod:[mods]? name:[alias] <SEMICOLON>  #clamp:EmptyNode #mod:EmptyNode #value:NullNode
 
 
 @Code

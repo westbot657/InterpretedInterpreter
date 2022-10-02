@@ -24,9 +24,15 @@ class DebugPrint:
         if len(args) == 0: return
         x = kwargs.get("x", None)
         if x: kwargs.pop("x")
+        c = kwargs.get("c", None)
+        if c:
+            kwargs.pop("c")
+            c = f"\033[38;2;{c[0]};{c[1]};{c[2]}m"
+        else: c = ""
         if self.active and (x == None or x not in self.disabled_):
             args = list(args)
-            args.insert(0, f"{self.color}[{self.name}]\033[0m:")
+            args.insert(0, f"{self.color}[{self.name}]\033[0m: {c}")
+            args.append("\033[0m")
             print(*args, **kwargs)
         if len(args) == 1:
             return args[0]
@@ -58,6 +64,9 @@ class Tree:
                 self.current_branch.update({p: {}})
                 self.current_branch = self.current_branch.get(p)
 
+        if self.get_branch_name() == "func-def" and self.locked:
+            input()
+    
     def lock(self):
         self.locked = True
     
@@ -910,6 +919,8 @@ class Lexer:
 
         return tokens, None
 
+Nprint = DebugPrint("Node", 0, 255, 255)
+Nprint.toggle()
 class Node:
     _nodes = []
 
@@ -924,16 +935,17 @@ class Node:
                 setattr(self, key, values[key])
             
             self._parent_node = parent
-
+        
         def __repr__(self):
             res = []
             for v in self._vals:
                 res.append(f"{v}={str(getattr(self, v))}")
 
-            return f"{self.parent.name}:({', '.join(res)})"
+            return f"{self._parent_node.name}({', '.join(res)})"
 
     @classmethod
     def get(cls, name):
+        Nprint(f"looking for node: '{name}'")
         for node in cls._nodes:
             if node.name == name:
                 return node
@@ -948,7 +960,7 @@ class Node:
         return Node.NodeInstance(self, **kwargs)
     
     def __repr__(self):
-        return str(self.values)
+        return self.name + " " + str(self.values)
 
 nbprint = DebugPrint("NodeBuilder", 0, 50, 200)
 class NodeBuilder:
@@ -973,6 +985,7 @@ class NodeBuilder:
                 nbprint(f"new node: {name}")
 
             Node(name, values)
+        print(Node._nodes)
         
 """
 @Nodes
@@ -1272,7 +1285,9 @@ class ParserBuilder:
             pieces = line.split(" ")
 
             if line.startswith("#!entry-point:"):
+
                 self.entry_point = line.replace("#!entry-point:", "").strip()
+                pbprint(f"entry-point: '{self.entry_point}'")
                 continue
             
             if (not line_.startswith(" ")) and pieces[0].endswith(":"):
@@ -1324,7 +1339,82 @@ class ParserBuilder:
                 
                 index += 1
 
+
+Qprint = DebugPrint("Quantifier", 255, 255, 20)
+Qprint.toggle()
+class Quantifier:
+
+    def __init__(self, quant=None):
+        self.current = 0
+        self.min_val = 1
+        self.max_val = 1
+        self._valid = True
+        if quant == None:
+            pass # this way no error occures from trying to get NoneType.startswith
+        elif quant == "?":
+            self.min_val = 0
+        elif quant == "*":
+            self.min_val = 0
+            self.max_val = -1
+        elif quant == "+":
+            self.min_val = 1
+            self.max_val = -1
+        elif quant.startswith("{") and quant.endswith("}"):
+            quant = quant.replace("{", "").replace("}", "")
+            if "," in quant:
+                mn, mx = quant.split(",")
+                self.min_val = int(mn)
+                self.max_val = int(mx)
+            else:
+                self.min_val = self.max_val = int(quant)
+        else:
+            raise Exception(f"Invalid quantifier: '{quant}'")
+        Qprint(f"new: '{quant}' ({self.min_val}:{self.max_val})", c=(255,255,0))
+
+    def check(self, value):
+        if value:
+            self.next()
+            if self.max_val == -1:
+                if self.current < self.min_val:
+                    Qprint(f"check: need more values! min:{self.min_val} current:{self.current}", x="check")
+                    return "need"
+                Qprint(f"check: valid value! min:{self.min_val} current:{self.current}", x="check")
+                return "valid"
+                
+            elif self.current == self.max_val:
+                Qprint(f"check: max values reached! {self.min_val}<={self.current}<={self.max_val}", x="check")
+                return "done"
+
+            elif self.current > self.max_val:
+                Qprint(f"check: max values exceeded!? max:{self.max_val} current:{self.current}", x="check")
+                raise Exception("quantifier went over!")
+
+        else:
+            if self.current < self.min_val:
+                Qprint(f"check: not enough values! current:{self.current} min:{self.min_val}", x="check")
+                return "not-enough"
+            Qprint(f"check: quantifier satisfied! {self.min_val}<={self.current} max:{self.max_val}", x="check")
+            return "done"
+
+    def next(self):
+        Qprint("next")
+        self.current += 1
+
+    def valid(self):
+        if self.min_val <= self.current:
+            if self.max_val == -1 or self.current <= self.max_val: return True
+            else: return False
+        else: return False
+
+    def get_err(self): # if this is being called, there was an error
+        if self.min_val <= self.current:
+            return f"too many values given!? expected at most: {self.max_val} match{'es' * (self.max_val!=1)}"
+        else:
+            return f"not enough values! expected at least: {self.min_val} match{'es' * (self.min_val!=1)}"
+
+
 Pprint = DebugPrint("Parser", 0, 220, 220)
+Pprint.toggle()
 class Parser:
 
     def __init__(self, tokens, builder):
@@ -1333,16 +1423,19 @@ class Parser:
         self.entry_point = builder.entry_point
         self.tokens = tokens
         self.tok_len = len(tokens)
-        self.idx = 0
+        self.idx = -1
         self.diff = 0
         self._diff = 0
+        self.ghost_stack = []
         self.current_tok = None
+        Pprint(f"creating new Parser", x="init", c=(255,0,0))
+        self.advance()
 
     def gdx(self):
         return self.idx + self.diff
 
     def advance(self, n=1):
-        Pprint(f"advance: {n=}")
+        Pprint(f"advance: {n=}", x="advance")
         while n >= 1:
             self.idx += 1
             if self.idx < self.tok_len:
@@ -1359,81 +1452,300 @@ class Parser:
         else:
             self.current_tok = None
 
+    def ghost_save(self):
+        self.ghost_stack.insert(0, self.diff)
+    
     def ghost_reset(self):
         Pprint("ghost-reset", x="ghost")
-        self.diff = 0
+        self.diff = self.ghost_stack.pop(0) if len(self.ghost_stack) > 0 else 0
         if self.idx < self.tok_len:
             self.current_tok = self.tokens[self.idx]
         else:
             self.current_tok = None
+
+    def solidify(self):
+        Pprint("solidify!", x="ghost")
+        self.advance(self.diff)
+        self.diff = 0
+        self._diff = 0
+        self.ghost_stack = []
     
-    def get_segment(self, start, endsegment_toks=["NEWLINE"]):
-        seg = []
+    # def get_segment(self, start, endsegment_toks=["NEWLINE"]):
+    #     seg = []
+    #     Pprint("get-segment", c=(0,255,127))
+    #     if start > self.tok_len:
+    #         return []
 
-        if start > self.tok_len:
-            return []
+    #     i = start
+    #     while True:
+    #         tok = self.tokens[i]
+    #         seg.append(tok)
+    #         if tok.token_type == "EOF" or tok.token_type in endsegment_toks:
+    #             return seg
+    #         i += 1
+    #         if i > self.tok_len:
+    #             raise Exception("no EOF found!")
 
-        i = start
-        while True:
-            tok = self.tokens[i]
-            seg.append(tok)
-            if tok.token_type == "EOF" or tok.token_type in endsegment_toks:
-                return seg
-            i += 1
-            if i > self.tok_len:
-                raise Exception("no EOF found!")
-
-
-    def parse(self):
+    def parse(self): 
         self.tree.goto(self.entry_point)
         return self._parse()
 
-    def explore_pattern(self, pattern, node):
-        node = pattern.get("node", node)
-        for i in pattern.keys():
-            if i == "node": continue
-            patt = pattern[i]
-            if isinstance(patt, str):
-                if patt.startswith("[") and patt.endswith("]"):
-                    branch = self.tree.get_branch()
-                    self.tree.goto(patt.replace("[", "").replace("]", ""))
-                    value, error = self._parse()
-                    self.tree.goto(branch)
-                    if error:
-                        return value, error
-                    if not value:
-                        return None, f"Expected: {patt}"
+    def _parse_node(self, node_str):
+        node = None
+        values = []
+        name = ""
+        Pprint(f"parsing-node: '{node_str}'", x="parse-node", c=(127,127,0))
+        while node_str != "":
+            
+            if node_str[0] == "(":
+                #name = node_str.split("(", 1)[0]
+                node = Node.get(name)
+                name = ""
+                Pprint(f"current char is '(', {name=}, after='{node_str[1:]}'", x="parse-node")
+                _node, node_str = self._parse_node(node_str[1:])
+                values.append(_node)
+                
+            elif node_str[0] == ")":
+                node_str = node_str[1:]
+                if node_str[0] == ",": node_str = node_str[1:]
+                Pprint(f"current char is ')', node is '{node.name}', {node_str=}", x="parse-node")
+                return node(**dict(zip(node.values, values))), node_str
 
-                elif patt.startsith("<") and patt.endswith(">"):
+            elif node_str[0] == ",":
+                _node = Node.get(name)()
+                values.append(_node)
+                Pprint(f"current char is ',', name is '{name}'", x="parse-node")
+                name = ""
+                node_str = node_str[1:]
+
+            else:
+                name += node_str[0]
+                node_str = node_str[1:]
+
+        if name:
+            Pprint(f"making node: {name=}", x="parse-node", c=(0,200,0))
+            return Node.get(name)(), None
+        
+    def parse_node(self, node_str):
+        node, _ = self._parse_node(node_str)
+        return node
+    
+    def explore_pattern(self, pattern, node):
+        node = pattern.get("node", None) or node
+        node_captures = {}
+
+        if not self.current_tok:
+            return None, None, "EOF"
+        if self.current_tok.token_type == "EOF":
+            return None, None, "EOF"
+        
+        Pprint(f"exp-pattern: {node=}", x="exp")
+        if set_vals := pattern.get("set-value", None):
+            for key in set_vals:
+                _node = self.parse_node(set_vals[key])
+                Pprint(f"set-val: '{key}': {_node}", x="exp")
+
+        for i in list(pattern.keys()): # iterate through portions of a pattern
+            Pprint(f"iteration key: '{i}'", x="exp")
+            if i == "node": continue
+            if i == "set-value": continue
+            if i == "quantifier": continue
+            patt = pattern[i]
+            Pprint(f"current-tok: {self.current_tok}", c=(0,127,255))
+            if isinstance(patt, str):
+                Pprint(f"is string, pattern={patt}")
+                if patt.startswith("[") and patt.endswith("]"):
+                    branch = self.tree.get_path()
+                    Pprint(f"saving branch: '{'/-/'.join(branch)}'")
+                    self.tree.goto(patt.replace("[", "").replace("]", ""))
+                    Pprint(f"moved to branch: '{'/-/'.join(self.tree.get_path())}', parsing", c=(0,255,255))
+                    Pprint(f"contents of branch: {self.tree.current_branch}", c=(200,200,0))
+                    value, error, eof = self._parse()
+                    if eof: return value, error, eof
+                    
+                    Pprint(f"returning to branch: '{'/-/'.join(branch)}'")
+                    self.tree.goto(branch)
+                    Pprint(f"{value=}  {error=}")
+                    if error:
+                        return value, error, None
+                    if not value:
+                        return None, f"Expected: {patt}", None
+                    # if value is present, then nothing needs to be done
+
+                elif patt.startswith("<") and patt.endswith(">"):
+                    if not self.current_tok:
+                        return None, None, "EOF"
+                    if self.current_tok.token_type == "EOF":
+                        return None, None, "EOF"
+                    Pprint(f"testing: '{self.current_tok.regex()}' against pattern: '{patt}'", c=(255,0,0))
                     if not re.match(patt, self.current_tok.regex()):
-                        return None, f"Expected Token: {patt}"
+                        return None, f"Expected Token: {patt}", None
 
             elif isinstance(patt, dict):
                 # either a nested pattern
                 # or a pattern with a capture and/or quantifier
-                pass
+                if "pattern" in patt.keys(): # ^ option 2
+                    Pprint("key 'pattern' found in pattern rules")
+                    pat = patt["pattern"]
+                    quantifier = Quantifier(patt.get("quantifier", None))
+                    capture = patt.get("capture", None)
+                    captures = []
+                    if pat.startswith("[") and pat.endswith("]"): # [atom]+
+                        Pprint("pattern is a sub-rule")
+                        branch = self.tree.get_path()
+                        Pprint(f"saving branch: '{'/-/'.join(branch)}'")
+                        do_loop = True
+                        while do_loop:
+                            self.tree.goto(pat.replace("[", "").replace("]", ""))
+                            Pprint(f"moving to branch: '{pat.replace('[', '').replace(']', '')}'")
+                            Pprint("parsing")
+                            value, error, eof = self._parse() # IntegerNode | value:<INT> -> IntegerNode(<INT>), None
+                            Pprint(f"returning to branch: '{'/-/'.join(branch)}'", c=(255,255,0))
+                            self.tree.goto(branch)
+                            Pprint(f"{value=}  {error=}  {eof=}")
+                            if eof: return value, error, eof
+                            # if error:
+                            #     return value, error
+                            if value and capture:
+                                captures.append(value)
 
-                
+                            #quantifier.next()
+                            state = quantifier.check(value)
+                            if value:
+                                self.ghost_advance()
+                            if state == "done":
+                                self.ghost_save()
+                                #self.solidify()
+                                break
+                                #return value, error # quantifier has reached an end
+                            elif state in ["need", "valid"]:
+                                pass # continue iterating
+                            elif state == "not-enough":
+                                self.ghost_reset()
+                                
+                                return value, f"Expected: {pat}", None # quantifier did not recieve enough values
+
+                        #if not do_loop: break
+                        
+                        if not quantifier.valid():
+                            return None, quantifier.get_err(), None
+                        if capture:
+                            node_captures.update({capture: captures})
+                            
+                    elif pat.startswith("<") and pat.endswith(">"):
+                        do_loop = True
+                        while do_loop:
+                            if not self.current_tok:
+                                return None, None, "EOF"
+
+                            if self.current_tok.token_type == "EOF":
+                                return None, None, "EOF"
+
+                            Pprint(f"testing: '{self.current_tok.regex()}' against pattern: '{pat}'", c=(255,0,0))
+                            value = re.match(pat, self.current_tok.regex())
+                            if value: value = value.group()
+
+                            #quantifier.next()
+                            state = quantifier.check(value)
+                            if value:
+                                self.ghost_advance()
+                            if state == "done":
+                                #self.solidify()
+                                self.ghost_save()
+                                break
+                                #return value, None
+                            elif state in ["need", "valid"]:
+                                pass
+                            elif state == "not-enough":
+                                self.ghost_reset()
+                                return value, f"Expected: {pat}", None
+
+                        #if not do_loop: break
+                        
+                        if not quantifier.valid():
+                            return None, quantifier.get_err(), None
+                        if capture:
+                            node_captures.update({capture: captures})
+
+                else:
+                    Pprint(f"Exploring sub-pattern: {patt}")
+
+                    q = Quantifier(patt.get("quantifier", None))
+                    values = []
                     
+                    while True:
+                        val, err, eof = self.explore_pattern(patt, node)
+                        if eof: return val, err, eof
+
+                        # if err:
+                        #     return err
+
+                        state = q.check(val)
+
+                        if val:
+                            values.append(val)
+
+                        if state == "done":
+                            if capture := patt.get("capture", None):
+                                node_captures.update({capture: values})
+                            break
+
+                        elif state in ["need", "valid"]:
+                            pass
+
+                        elif state == "not-enough":
+                            return value, err, None
+
+                    if not q.valid():
+                        return None, q.get_err(), None
+                        
+                    
+                    #if val or err:
+                    #    return val, err
+
+        # Pprint(f"{node_captures=}  {Value=}  {Error=}", c=(255,0,255))
+        # # if this point is reached, a pattern has successfully matched!
+        # state = global_quantifier.check(node_captures or Value)
+
+        # Pprint(f"global: {state=}")
+        # if state == "done":
+        #     self.solidify()
+        #     return Value or Node.get(node)(**node_captures), Error
+        # elif state in ["need", "valid"]:
+        #     pass
+        # elif state == "not-enough":
+        #     self.ghost_reset()
+        #     return Value, Error
+
+        # Value, Error = None, None
+
+        Pprint(f"{node=}  {node_captures=}")
+        return Node.get(node)(**node_captures), None, None
+    
     
     def _parse(self):
+        # [expr]: global-node:None
         global_node = self.tree.current_branch.get("node", None)
         # ^ get global node if present
-
+        Pprint(f"global-node: {global_node}", x="parse")
         if patterns := self.tree.current_branch.get("patterns", None):
-            for key in patterns.keys():
-                node, error = self.explore_pattern(patterns[key], global_node)
-                if node or error:
-                    return node, error
-                
-                
+            error = None
+            Pprint(f"KEYS: {patterns.keys()}", c=(255,0,0))
+            #quantifier = Quantifier(patterns.get)
+            for key in patterns.keys(): # keys: ['0', '1', '2', 'quantifier'?]
+                Pprint(f"_parse: {key=}  rules: {patterns[key]}")
+                node, error, eof = self.explore_pattern(patterns[key], global_node)
+                Pprint(f"_parse: {node=}  {error=}  {eof=}")
+                if node or eof:
+                    return node, error, eof
 
+            if error:
+                return None, error, eof
+                
         else: # no patterns given (wierd)
             raise Exception("rule has no patterns!")
-            
-        
 
-        return node, None
+        return node, None, None
 
 import json
 def main():
@@ -1446,8 +1758,7 @@ def main():
     lexBuild = LexerBuilder(segments.LexerSegment)
     tree = lexBuild.build()
     
-    
-    #print(json.dumps(tree.tree, indent=2))
+    print(json.dumps(tree.tree, indent=2))
     lexer = Lexer("<stdin>", "", tree)
     parseBuild = ParserBuilder(segments.ParserSegment)
     parseBuild.build()
@@ -1457,6 +1768,9 @@ def main():
     #print(lexer.redirect_from_checks)
     #print(segments.CodeSegment)
     #tokens = lexer.make_tokens()
+
+    nodeBuild = NodeBuilder(segments.NodesSegment)
+    nodeBuild.build()
     
     #print(tokens)
     cmd = ""
@@ -1475,12 +1789,12 @@ def main():
         print(tokens)
 
         parser = Parser(tokens, parseBuild)
-        nodes, error = parser.parse()
+        nodes, error, eof = parser.parse()
 
         if error:
-            print(error)
-            continue
-        #print(nodes)
+           print(error)
+           continue
+        print(nodes)
 
         
 
