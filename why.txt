@@ -1,0 +1,710 @@
+entered text is: "12"
+
+branch it needs to look down:
+[statements]
+    [statement]
+        [expr]
+            [comp-expr] <(AND|OR)> [comp-expr]
+            [comp-expr]
+                [arith-expr] ...
+                [arith-expr]
+                    [term] ...
+                    [term]
+                        [factor] ...
+                        [factor]
+                            [bitswap]
+                                [power] ...
+                                [power]
+                                    [call] ...
+                                    [call]
+                                        [atom] ...
+                                        [atom]
+                                            <INT>         <---
+                                            <FLOAT>
+                                            <BASENUM>
+                                            <BOOLEAN>
+                                            <NULL>
+                                            [class-def]
+                                            [var-def]
+                                            [func-def]
+                                            [import-expr]
+
+How the expression is evaluated:
+X = match fails
++ = match succeeds
+
+
+
+[statements]->[statement]->
+[expr]
+|   [comp-expr] ...
+    |   [arith-expr] ...
+        |   [term] ...
+            |   [factor] ...
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor) ...  X
+            |   [factor]
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor)  +
+        ^   (term) ...  X
+        |   [term]
+            |   [factor] ...
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor) ...  X
+            |   [factor]
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor)  +
+        ^   (term)  +
+    ^   (arith-expr) ...  X
+    |   [arith-expr]
+        |   [term] ...
+            |   [factor] ...
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor) ...  X
+            |   [factor]
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor)  +
+        ^   (term) ...  X
+        |   [term]
+            |   [factor] ...
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor) ...  X
+            |   [factor]
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor)  +
+        ^   (term)  +
+    ^   (arith-expr)  +
+^   (comp-expr) ...  X
+|   [comp-expr]
+    |   [arith-expr] ...
+        |   [term] ...
+            |   [factor] ...
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor) ...  X
+            |   [factor]
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor)  +
+        ^   (term) ...  X
+        |   [term]
+            |   [factor] ...
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor) ...  X
+            |   [factor]
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor)  +
+        ^   (term)  +
+    ^   (arith-expr) ...  X
+    |   [arith-expr]
+        |   [term] ...
+            |   [factor] ...
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor) ...  X
+            |   [factor]
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor)  +
+        ^   (term) ...  X
+        |   [term]
+            |   [factor] ...
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor) ...  X
+            |   [factor]
+                |   [bitswap]
+                    |   [power] ...
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power) ...  X
+                    |   [power]
+                        |   [call] <(POW|ROOT)> [factor]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call) <(POW|ROOT)>  X
+                        |   [call]
+                            |   [atom] <LPAREN> ... <RPAREN>
+                                |   <INT>  +
+                            ^   (atom) <LPAREN>  X
+                            |   [atom]
+                                |   <INT>  +
+                            ^   (atom)  +
+                        ^   (call)  +
+                    ^   (power)  +
+                ^   (bitswap)  +
+            ^   (factor)  +
+        ^   (term)  +
+    ^   (arith-expr)  +
+^   (comp-expr)  +
+
+
+
