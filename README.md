@@ -147,6 +147,12 @@ the rule name is obviouse, it's there so that you can reference it from within a
 `BinOpNode | left:...` makes a BinOpNode with values captured from the pattern  
 `| [comp-expr]` assumes that a node is being made in the comp-expr rule
 
+parts of a pattern should be seperated by spaces.  
+Ex:
+```
+    VarAssignNode | <KEYWORD:var> name:<ID> (<LT> type:<ID> <RT>)? <EQ> value:[expr]  #type:NullNode
+                                 ^         ^     ^         ^      ^    ^
+```
 
 
 
