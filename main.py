@@ -1,4 +1,4 @@
-
+'''
 import re
 
 
@@ -1414,7 +1414,7 @@ class Quantifier:
 
 
 Pprint = DebugPrint("Parser", 0, 220, 220)
-#Pprint.toggle()
+Pprint.toggle()
 class Parser:
 
     def __init__(self, tokens, builder):
@@ -1546,6 +1546,7 @@ class Parser:
         node = pattern.get("node", None) or node
         node_captures = {}
         set_values = {}
+        val1 = None
 
         if self.tree.get_branch_name() in ["var-def", "alias"] and self.current_tok.token_type == "EQ":
             pass
@@ -1591,10 +1592,11 @@ class Parser:
                         #self.ghost_unsave()
                         return value, error, None
                     if not value:
-                        self.ghost_reset() # X<-[0]  =>  0  []
+                        if not isinstance(val1, tuple): self.ghost_reset() # X<-[0]  =>  0  []
                         #self.ghost_unsave()
-                        return None, f"Expected: {patt}", None
+                        return val1, f"Expected: {patt}", None
                     #self.ghost_unsave()
+                    if i == "0": val1 = (patt, value)
                     # if value is present, then nothing needs to be done
 
                 elif patt.startswith("<") and patt.endswith(">"):
@@ -1606,8 +1608,8 @@ class Parser:
                     if not re.match(patt, self.current_tok.regex()):
                         #self.ghost_reset() # X<-[0]  =>  0  []
                         self.ghost_unsave()
-                        return None, f"Expected Token: {patt}", None
-                    
+                        return val1, f"Expected Token: {patt}", None
+                    #if i == "0": val1 = self.current_tok
                     self.ghost_advance() # X+=1  [0]
 
             elif isinstance(patt, dict):
@@ -1659,8 +1661,8 @@ class Parser:
                         #if not do_loop: break
                         
                         if not quantifier.valid():
-                            self.ghost_reset() # 2<-[0]  =>  0  []
-                            return None, quantifier.get_err(), None
+                            if not isinstance(val1, tuple): self.ghost_reset() # 2<-[0]  =>  0  []
+                            return val1, quantifier.get_err(), None
                         if capture:
                             if len(captures) == 0:
                                 node_captures.update({capture: set_values.get(capture, None)})
@@ -1669,6 +1671,7 @@ class Parser:
                             else:
                                 node_captures.update({capture: captures})
 
+                        if i == "0": val1 = (pat, node_captures[capture])
                         # 2  [0]
                             
                     elif pat.startswith("<") and pat.endswith(">"):
@@ -1710,8 +1713,8 @@ class Parser:
                         #if not do_loop: break
                         
                         if not quantifier.valid():
-                            self.ghost_reset() # 2<-[0]  =>  0  []
-                            return None, quantifier.get_err(), None
+                            if not isinstance(val1, tuple): self.ghost_reset() # 2<-[0]  =>  0  []
+                            return val1, quantifier.get_err(), None
                         if capture:
                             node_captures.update({capture: captures})
 
@@ -1750,8 +1753,8 @@ class Parser:
                             return value, err, None
 
                     if not q.valid():
-                        self.ghost_reset() # 2<-[0]  =>  0  []
-                        return None, q.get_err(), None
+                        if not isinstance(val1, tuple): self.ghost_reset() # 2<-[0]  =>  0  []
+                        return val1, q.get_err(), None
                         
                     # 2  [0]
                     
@@ -1790,10 +1793,30 @@ class Parser:
             error = None
             Pprint(f"KEYS: {patterns.keys()}", c=(255,0,0))
             #quantifier = Quantifier(patterns.get)
+            save = None
             for key in patterns.keys(): # keys: ['0', '1', '2', 'quantifier'?]
                 Pprint(f"_parse: {key=}  rules: {patterns[key]}")
+                pk = patterns[key].keys()
+                if ("0" in pk) and ("1" not in pk) and ("quantifier" not in pk) and save:
+                    # if pk looks like: ["0"] or ["0", "capture"] then it has 1 pattern element
+                    if pk[0] == save[0]:
+                        # if a failed rule happens to be the rule of this pattern, then return that node
+                        return save[1], None, None
+                    else:
+                        save = None
+                        self.ghost_reset()
+                elif save:
+                    save = None
+                    self.ghost_reset()
                 node, error, eof = self.explore_pattern(patterns[key], global_node)
-                Pprint(f"_parse: {node=}  {error=}  {eof=}")
+                Pprint(f"_parse: {node=}  {error=}  {eof=}", c=(255,255,0))
+                if isinstance(node, tuple): # if node is tuple, that means the pattern failed,
+                    save = node # but returned the pattern and node made from it's first element,
+                    node = None # this way, if a following pattern is a 1-element pattern that
+                    # is the same pattern as the failed one, it can skip parsing it again
+                    # this will hopefully prevent the fractal-branch parsing
+                    # NOTE: if the node was a tuple, then self.ghost_reset() will need to be called, if it's pattern isn't used
+                
                 if node:# or eof:
                     return node, error, eof
 
@@ -1854,9 +1877,51 @@ def main():
            continue
         print(nodes)
 
-        
+'''
 
-    
+from Lexer import LexerBuilder, Lexer
+from Parser import ParserBuilder, Parser
+from Util import Segmentor
+from Node import NodeBuilder
+
+def main():
+    text = ""
+    with open("test.txt", "r") as file:
+        text = file.read()
+
+    segments = Segmentor(text)
+    segments.segment()
+
+    lexer_builder = LexerBuilder(segments.LexerSegment)
+    lexer_tree = lexer_builder.build()
+    lexer = Lexer("<stdin>", "", lexer_tree)
+    parser_builder = ParserBuilder(segments.ParserSegment)
+    parser_builder.build()
+    node_builder = NodeBuilder(segments.NodesSegment)
+    Node = node_builder.build()
+
+    cmd = ""
+    while cmd != "exit()":
+        cmd = input(">>> ")
+        if cmd == "exit()": break
+        if cmd.strip() == "": continue
+
+        lexer.reset("<stdin>", cmd)
+        tokens, error = lexer.make_tokens()
+        if error:
+            print(error)
+            continue
+
+        print(tokens)
+        
+        parser = Parser(tokens, parser_builder, Node)
+        nodes, error, eof = parser.parse()
+
+        if error:
+            print(error)
+            continue
+
+        print(nodes)
 
 if __name__ == "__main__":
     main()
