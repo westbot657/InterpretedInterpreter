@@ -444,10 +444,10 @@ class Parser:
                                 #return value, error # quantifier has reached an end
                             elif state in ["need", "valid"]:
                                 pass # continue iterating
-                            elif state == "not-enough":
+                            elif state == "not-enough": # if this is reached, value is None
                                 self.ghost_reset() # 2<-[1,0]  =>  1  [0]
-                                self.ghost_reset() # 1<-[0]  =>  0  []
-                                return value, f"Expected: {pat}", None # quantifier did not recieve enough values
+                                if not isinstance(val1, tuple): self.ghost_reset()#self.ghost_reset() # 1<-[0]  =>  0  []
+                                return val1, f"Expected: {pat}", None # quantifier did not recieve enough values
 
                         #if not do_loop: break
                         
@@ -507,8 +507,8 @@ class Parser:
                                 pass
                             elif state == "not-enough":
                                 self.ghost_reset() # 2<-[1, 0]  =>  1  [0] # reset to before while loop
-                                self.ghost_reset() # 1<-[0]  =>  0  []     # reset to beginning of pattern
-                                return value, f"Expected: {pat}", None
+                                if not isinstance(val1, tuple): self.ghost_reset()#self.ghost_reset() # 1<-[0]  =>  0  []     # reset to beginning of pattern
+                                return val1, f"Expected: {pat}", None
 
                         #if not do_loop: break
                         
@@ -549,8 +549,8 @@ class Parser:
 
                         elif state == "not-enough":
                             self.ghost_reset() # 2<-[1, 0]  =>  1  [0] # reset to before this while loop
-                            self.ghost_reset() # 1<-[0]  =>  0  []     # reset to before the entire pattern
-                            return value, err, None
+                            if not isinstance(val1, tuple): self.ghost_reset()#self.ghost_reset() # 1<-[0]  =>  0  []     # reset to before the entire pattern
+                            return val1, err, None
 
                     if not q.valid():
                         if not isinstance(val1, tuple): self.ghost_reset() # 2<-[0]  =>  0  []

@@ -195,6 +195,7 @@ atom:
     | [var-def]
     | [func-def]
     | [import-expr]
+    | [var-access]
 
 import-expr: ImportNode
     | <IMPORT> sub_import:[name] <IMPORT> module:[name]  #target:NullNode
@@ -220,7 +221,8 @@ names: AliasNode
 
 alias: AliasNode
     | values:<ID> (<BACKSLASH> values:<ID>)*
-
+var-access: VarAccessNode
+    | name:[name]
 class-def: ClassDefNode
     | mod:[mods]? <CLASSDEF> name:[alias] (<LT> inheret:[names] <GT>)? <LBRACKET> body:[statements] <RBRACKET>  #inheret:EmptyNode #mod:EmptyNode
 func-def: FuncDefNode
