@@ -1,16 +1,18 @@
 # InterpretedInterpreter
-an interpreter that reads instructions to create an interpreter to run code using your own syntax rules
+an interpreter, that reads instructions, to create an interpreter, to run code, using your own syntax rules!
 
 #### jump to:
-[Example Rules](#example-rules) | [Lexer](#Lexer)
+[Example Rules](#example-rules) | [Lexer](#Lexer) | [Nodes](#nodes) | [Parser](#parser)
 
 ## So...
-basically, I got bored of writing the rules of a lexer, parser, etc, in pure code, so I'm factoring out most of it into a sort of data structure!
-
+basically, I got bored of writing the rules of a lexer, parser, etc, in pure code,  
+so I'm factoring out most of it into a sort of data structure!  
 and now I'm just writing code to intepret the rules for a language!
 
+## Interactive Help
+The syntax rules can be a bit messy, run the [interactive help](#interactive_help.py) program for better help!
 
-### <a id="example-rules" name="example-rules">Example Rules</a>
+## Example Rules
 (it's a bit completely impossible to tell exactly whats happening in this lol)
 
 ```ruby
@@ -70,8 +72,8 @@ atom:
   StringNode | value:<STRING>
 ```
 
-
-## syntax for rules in @Lexer - #!literal:
+## Lexer
+### syntax for rules in @Lexer - #!literal:
 ```html
 @Lexer
 #!literals
@@ -85,7 +87,7 @@ atom:
 ```
 (indentation is entirely optional for literals, newlines are required though)
 
-## syntax for rules in @Lexer - #!patterns:  
+### syntax for rules in @Lexer - #!patterns:  
 `>>> pattern`  
 \^ checks if the text from current position matches pattern  
 if it does match, go to nested elements  
@@ -123,7 +125,9 @@ identifier:
     ID
 ```
 
-## Syntax for nodes in @Nodes:
+
+## Nodes
+### Syntax for nodes in @Nodes:
 I think the syntax is pretty straight forward,  
 you put the name of the node, and then if you want that node to have values,  
 you put then names of those values in parenthesis after the name:  
@@ -134,9 +138,12 @@ NullNode
 StringNode(value)
 BinOpNode(left, op, right)
 ```
-the @Nodes section really wasn't necessary for me to add, but it will probably make it easier to locate typos in the rules of @Parser eventually
+the @Nodes section really wasn't necessary for me to add, but it will probably make it  
+easier to locate typos in the rules of @Parser eventually
 
-## Syntax for rules in @Parser:
+
+## Parser
+### Syntax for rules in @Parser:
 this is the most complicated rule syntax so far.  
 it's regex-based, but with some rules to be able to check for tokens and other parser rules  
 ex: (I'm leaving the comp-expr rule undefined, as it is a large chain of rules)
@@ -151,6 +158,25 @@ so whats happening here?
 the rule name is obviouse, it's there so that you can reference it from within a rule
 `BinOpNode | left:...` makes a BinOpNode with values captured from the pattern  
 `| [comp-expr]` assumes that a node is being made in the comp-expr rule
+
+parts of a parser rule:
+- rule name - `my-rule:`
+- optional global node type - `my-rule: myNode`
+- patterns - `| ...`
+  - optional node type - `my_node | ...`
+  - rules
+    - match token type - `| ... <ID> ...`
+    - match token type + value - `| ... <KEYWORD:if> ...`
+    - match multiple token types - `| ... <(AND|OR)> ...`
+    - match another rule - `| ... [my-other-rule] ...`
+    - capture a node value - `| ... value:<INT> ...`
+    - group rules (for quantifiers) - `| names:<ID> (<COMMA> names:<ID>)`
+  - quantifiers
+    - 0 or more - `*` - `| names:<ID> (<COMMA> names:<ID>)*`
+    - 0 or 1 - `?` - `| [statement] <SEMICOLON>?`
+    - 1 or more - `+` - `| [statement]+` (I haven't found a case where this quantifier is actually useful)
+    - custom - `{a}` or `{a, b}` - `[statement]{2,5}` (Also not sure when this one is legitemately useful)
+
 
 parts of a pattern should be seperated by spaces.  
 Ex:
