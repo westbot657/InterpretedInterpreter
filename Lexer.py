@@ -179,7 +179,7 @@ class LexerBuilder:
                     self.tree.into(pattern)
                     self.tree.set("type", "hr-match")
                     
-                elif line.startswith(">>"): # soft-continuation-match
+                elif line.startswith(">>"): # soft-reset-match
                     if self.tree.get_branch_name() != "matches":
                         self.tree.into("matches")
                     # if not self.tree.contains("sc-match"):

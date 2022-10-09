@@ -1877,7 +1877,7 @@ def main():
            continue
         print(nodes)
 
-'''
+\'''
 
 from Lexer import LexerBuilder, Lexer
 from Parser import ParserBuilder, Parser
@@ -1934,7 +1934,11 @@ pb = ParserBuilder("")
 pb._parse("<(VLINE|HASH|DOLLAR)>? name:<ID> (<ALIAS> aliases:<ID>)* <SEMICOLON>")
 
 """
-    
+'''
+
+import interactive_help as ihelp
+
+ihelp.main()
 
     
-
+#'''
