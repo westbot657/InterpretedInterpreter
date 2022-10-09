@@ -1877,12 +1877,15 @@ def main():
            continue
         print(nodes)
 
-\'''
+# add "\\" to start of \/ to switch to testing
+'''
 
 from Lexer import LexerBuilder, Lexer
 from Parser import ParserBuilder, Parser
 from Util import Segmentor
 from Node import NodeBuilder
+
+import json
 
 def main():
     text = ""
@@ -1894,6 +1897,7 @@ def main():
 
     lexer_builder = LexerBuilder(segments.LexerSegment)
     lexer_tree = lexer_builder.build()
+    print(json.dumps(lexer_tree.tree, indent=2))
     lexer = Lexer("<stdin>", "", lexer_tree)
     parser_builder = ParserBuilder(segments.ParserSegment)
     parser_builder.build()
