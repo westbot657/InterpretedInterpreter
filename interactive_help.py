@@ -2,10 +2,9 @@
 # Run this for dynamic, interactive help #
 ##########################################
 
-from numpy import isin
 from Util import DebugPrint
 
-import re, json
+import re, json, time
 
 def make_escape_char_pattern(char_to_escape:str) -> str:
     """
@@ -52,6 +51,12 @@ def get_largest(array):
         
     return max_vals
 
+def typewrite(text:str, rate:float=0.05, end="\n"):
+    for c in text:
+        print(c, end="", flush=True)
+        time.sleep(rate)
+    print(end, end="")
+
 REGEX_DEFAULT_COLOR    = "\033[38;2;80;80;20m"
 REGEX_SET_COLOR        = "\033[38;2;220;220;50m"
 REGEX_QUANTIFIER_COLOR = "\033[38;2;20;120;200m"
@@ -63,12 +68,12 @@ STRING_DEFAULT_COLOR = "\033[38;2;220;170;100m"
 STRING_ESCAPED_COLOR = "\033[38;2;255;110;70m"
 STRING_BRACKET_COLOR = "\033[38;2;20;80;190m"
 
-JSON_KEY_COLOR = "\033[38;2;50;90;250m"
+JSON_KEY_COLOR         = "\033[38;2;50;90;250m"
 JSON_KEY_ESCAPED_COLOR = "\033[38;2;50;40;150m"
 
 NUMBER_COLOR = "\033[38;2;50;230;100m"
 
-TOKEN_COLOR = "\033[38;2;10;120;250m"
+TOKEN_COLOR       = "\033[38;2;10;120;250m"
 TOKEN_VALUE_COLOR = "\033[38;2;200;100;20m"
 
 LEXER_L_CHAR_COLOR     = "\033[38;2;10;140;180m"
@@ -76,21 +81,21 @@ LEXER_L_ARROW_COLOR    = "\033[38;2;0;200;120m"
 LEXER_L_REDIRECT_COLOR = "\033[38;2;200;100;20m"
 LEXER_L_ERROR_COLOR    = "\033[38;2;200;50;10m"
 
-FLAG_COLOR = "\033[38;2;100;100;100m"
+FLAG_COLOR      = "\033[38;2;100;100;100m"
 RULE_NAME_COLOR = "\033[38;2;45;200;215m"
-RULE_REF_COLOR = "\033[38;2;250;240;15m"
-CAPTURE_COLOR = "\033[38;2;175;25;180m"
+RULE_REF_COLOR  = "\033[38;2;250;240;15m"
+CAPTURE_COLOR   = "\033[38;2;175;25;180m"
 
 LEXER_P_HC_ARROW_COLOR = "\033[38;2;210;140;30m" # >>>
 LEXER_P_HR_ARROW_COLOR = "\033[38;2;190;190;35m" # >->
 LEXER_P_SR_ARROW_COLOR = "\033[38;2;60;145;40m" # >>
 
-SEGMENT_LABEL_COLOR = "\033[38;2;255;200;10m"
+SEGMENT_LABEL_COLOR    = "\033[38;2;255;200;10m"
 SUBSEGMENT_LABEL_COLOR = "\033[38;2;255;150;5m"
 
-NODE_COLOR = "\033[38;2;10;80;200m"
+NODE_COLOR   = "\033[38;2;10;80;200m"
 SYMBOL_COLOR = "\033[38;2;200;200;50m"
-ARGS_COLOR = "\033[38;2;10;200;100m"
+ARGS_COLOR   = "\033[38;2;10;200;100m"
 
 
 def colorize_regex(pattern:str):
@@ -584,6 +589,80 @@ def smart_colorize(text:str, lock=[]):
 
     return results[0](text)
 
+class Menu:
+
+    def __init__(self, **options):
+        """
+        for options use format:
+        Option_text=<callback>
+        single underscores convert to spaces,
+        double underscores are converted to a hyphen,
+        3 or more underscores convert to have 2 less underscores than given
+        leading underscores are removed
+        ex:
+        _1 => 1
+        Option_1 => Option 1
+        Text_with__a_hyphen => Text with-a hyphen
+        text_with_an___underscore => text with an_underscore
+        """
+        self.options = {}
+        self.regexes = {}
+
+        def repl(m):
+            return m.group()[2:]
+        
+        for key in options.keys():
+            val = options[key]
+            key = re.sub(r"^_+", "", key)
+            key = re.sub(r"(?<!_)_(?!_)", " ", key)
+            key = re.sub(r"(?<!_)__(?!_)", "-", key)
+            key = re.sub(r"___+", repl, key)
+            self.options.update({key: val})
+            self.regexes.update({key: [key]})
+
+    def add_regexes(self, **options):
+        """
+        same syntax as init, but pass a regex pattern string, or list/tuple of patterns
+        """
+
+        def repl(m):
+            return m.group()[2:]
+        
+        for key in options.keys():
+            val = options[key]
+            if isinstance(val, (int, float, bool, str)):
+                val = [val]
+            key = re.sub(r"^_+", "", key)
+            key = re.sub(r"(?<!_)_(?!_)", " ", key)
+            key = re.sub(r"(?<!_)__(?!_)", "-", key)
+            key = re.sub(r"___+", repl, key)
+            if key not in self.regexes.keys():
+                self.regexes.update({key: val})
+            else:
+                self.regexes[key] += val # [a, b, c] += [x, y, z]
+
+        return self
+    
+    def __call__(self, prompt="", opt_prefix="| ", opt_suffix="", input_prompt=": ", invalid_input="Invalid Input"):
+        print(prompt)
+        for key in self.options.keys():
+            print(f"{opt_prefix}{key}{opt_suffix}")
+
+        while True:
+            opt = input(input_prompt).lower().strip()
+            if opt == "":
+                print("\033[F", end="")
+                continue
+            
+            for key in self.regexes:
+                vals = self.regexes[key]
+                for val in vals:
+                    if re.fullmatch(val, opt):
+                        return self.options[key]
+                        
+            print(invalid_input)
+                
+
 
 regex_test = "(~/.../.../~) \"(\\\\.|[^\\\"])*\""
 string_test = "\"\\033[38;2;255;255;0mthis is test number {test}!\\nyay\""
@@ -694,7 +773,146 @@ def main():
 
     #print(colorize_parser(parser_test))
 
-    print(smart_colorize(json_test))
+    #print(smart_colorize(json_test))
+
+
+    def lexer_help():
+        def lexer_literals():
+            print("literals in the lexer have the simplest syntax.")
+            time.sleep(0.5)
+            print("say we want to make '+' be recognized as it's own \033[38;2;0;200;50mtoken\033[0m, called 'PLUS'")
+            time.sleep(1)
+            print(" 01 |\n 02 |\n 03 |\n 04 |\n 05 |")
+            # 01 | @Lexer
+            # 02 | #!literals
+            # 03 | +
+            # 04 |   = PLUSEQ
+            # 05 |   PLUS
+            typewrite("first we mark that we are in the lexer sector", end="")
+            time.sleep(0.2)
+            print(f"\033[5F 01 | {SEGMENT_LABEL_COLOR}@Lexer\033[0m\n\n\n\n\n")
+            time.sleep(0.6)
+            typewrite("next, mark that we are making a rule for literals.", end="")
+            time.sleep(0.2)
+            print(f"\033[5F 02 | {SUBSEGMENT_LABEL_COLOR}#!literals\033[0m\n\n\n\n\n")
+            time.sleep(0.6)
+            typewrite("now we can start writing the rules for literal chars!")
+            input("press [ENTER] to continue")
+            print("\033[F                         ", end="\r")
+            typewrite("first, we add a '+' to the rules", end="")
+            time.sleep(0.2)
+            print(f"\033[6F 03 | {LEXER_L_CHAR_COLOR}+\033[0m\n\n\n\n\n\n")
+            time.sleep(0.6)
+            typewrite("and now we add the token name after it", end="")
+            time.sleep(0.2)
+            print(f"\033[7F 03 | {LEXER_L_CHAR_COLOR}+ {TOKEN_COLOR}PLUS\033[0m\n\n\n\n\n\n\n")
+            input("press [ENTER] to continue")
+            print("\033[F                         ", end="\r")
+            typewrite("now lets expand this rule to include '+='")
+            time.sleep(0.5)
+            typewrite("to start, lets re-arrange what we have", end="")
+            time.sleep(0.2)
+            print(f"\033[9F 03 | {LEXER_L_CHAR_COLOR}+\033[0m     \n\n 05 |   {TOKEN_COLOR}PLUS\033[0m\n\n\n\n\n\n\n")
+            time.sleep(0.6)
+            typewrite("now we have room to add onto our rule")
+            time.sleep(0.6)
+            typewrite("we want to add '=' to after the '+'", end="")
+            time.sleep(0.2)
+            print(f"\033[10F 04 |   {LEXER_L_CHAR_COLOR}=\033[0m\n\n\n\n\n\n\n\n\n\n")
+            time.sleep(0.6)
+            typewrite("now we make a new token name for '+=': PLUSEQ", end="")
+            time.sleep(0.2)
+            print(f"\033[11F 04 |   {LEXER_L_CHAR_COLOR}= {TOKEN_COLOR}PLUSEQ\033[0m\n\n\n\n\n\n\n\n\n\n\n")
+            input("press [ENTER] to continue")
+            print("\033[F                         ")
+            typewrite("now lets look at an example of a literal that redirects to a pattern")
+            time.sleep(0.6)
+            typewrite("we'll use strings for this example")
+            time.sleep(0.2)
+            print(" 06 |")
+            # 06 | " -> patterns/-/string ?InvalidSyntax
+            typewrite("for this, a string will start with '\"'", end="")
+            time.sleep(0.2)
+            print(f"\033[F 06 | {LEXER_L_CHAR_COLOR}\"\033[0m\n")
+            time.sleep(0.6)
+            typewrite("now we start a redirect, putting '->' after the char", end="")
+            time.sleep(0.2)
+            print(f"\033[2F 06 | {LEXER_L_CHAR_COLOR}\" {LEXER_L_ARROW_COLOR}->\033[0m\n\n")
+            time.sleep(0.6)
+            typewrite("and now we tell it to go to the 'string' pattern rule", end="")
+            time.sleep(0.2)
+            print(f"\033[3F 06 | {LEXER_L_CHAR_COLOR}\" {LEXER_L_ARROW_COLOR}-> {LEXER_L_REDIRECT_COLOR}patterns/-/string\033[0m\n\n\n")
+            time.sleep(0.6)
+            typewrite("optionally, you can add an error message for if a redirect fails")
+            time.sleep(0.5)
+            typewrite("to declare an error, add '?' at the end, with an error message", end="")
+            time.sleep(0.2)
+            print(f"\033[5F 06 | {LEXER_L_CHAR_COLOR}\" {LEXER_L_ARROW_COLOR}-> {LEXER_L_REDIRECT_COLOR}patterns/-/string {LEXER_L_ERROR_COLOR}?InvalidSyntax\033[0m\n\n\n\n\n")
+            input("press [ENTER] to continue")
+            print("\033[F                         ", end="\r")
+
+    
+            
+        
+        def lexer_patterns():
+            pass
+
+        lexer_menu      = Menu(
+            _1_literals = lexer_literals,
+            _2_patterns = lexer_patterns,
+            _3_exit     = "exit"
+        ).add_regexes(
+            _1_literals = [
+                "litt?erals?",
+                "1"
+            ],
+            _2_patterns = [
+                "patt?er(ns)?",
+                "2"
+            ],
+            _3_exit = [
+                "exit",
+                "done",
+                "3"
+            ]
+        )
+
+        opt = lexer_menu("What part of the lexer do you want help with?")
+        if opt == "exit": return "exit"
+        ret = opt()
+        if ret == "exit": return "exit"
+    
+    def parser_help(): pass
+
+
+    
+    main_menu  = Menu(
+        _1_lexer  = lexer_help,
+        _2_parser = parser_help,
+        _3_exit   = "exit"
+    ).add_regexes(
+        _1_lexer = [
+            "lex(er)?",
+            "1"
+        ],
+        _2_parser = [
+            "parser?",
+            "2"
+        ],
+        _3_exit = [
+            "exit",
+            "done",
+            "3"
+        ]
+    )
+
+    while True:
+        opt = main_menu("Enter item to get help on")
+        if opt == "exit": break
+        ret = opt()
+        if ret == "exit": break
+    
+
     
 
     # cmd = ""

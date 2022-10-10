@@ -1877,8 +1877,8 @@ def main():
            continue
         print(nodes)
 
-# add "\\" to start of \/ to switch to testing
-'''
+# add "\" to start of \/ to switch to testing
+\'''
 
 from Lexer import LexerBuilder, Lexer
 from Parser import ParserBuilder, Parser
