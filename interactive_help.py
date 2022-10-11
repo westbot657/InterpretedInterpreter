@@ -51,11 +51,30 @@ def get_largest(array):
         
     return max_vals
 
-def typewrite(text:str, rate:float=0.05, end="\n"):
-    for c in text:
-        print(c, end="", flush=True)
-        time.sleep(rate)
-    print(end, end="")
+def typewrite(text:str, rate:float=0.05, end="\n", no_print=False):
+    write = []
+    while text != "":
+        if re.match(r"\\%", text):
+            write.append("%")
+            text = text[2:]
+
+        elif m := re.match(r"%((\\.)*[^\\%]*)+%", text):
+            write.append(m.group().replace("%", ""))
+            text = text.replace(m.group(), "", 1)
+
+        else:
+            write.append(text[0])
+            text = text[1:]
+
+    if not no_print:
+        for c in write:
+            print(c, end="", flush=True)
+            time.sleep(rate)
+        
+        print(end, end="")
+
+    return "".join(write)# + end
+
 
 REGEX_DEFAULT_COLOR    = "\033[38;2;80;80;20m"
 REGEX_SET_COLOR        = "\033[38;2;220;220;50m"
@@ -661,7 +680,115 @@ class Menu:
                         return self.options[key]
                         
             print(invalid_input)
-                
+
+
+class TextArea:
+
+    def __init__(self):
+        self.lines = []
+        #self.line = 0
+        #self.col = 0
+
+    def clear_line(self, line):
+        while len(self.lines) - 1 < line:
+            self.lines.append("")
+
+        self.lines[line] = ""
+        self.update(line)
+
+    def clear_lines(self, *lines):
+        for line in lines:
+            self.clear_line(line)
+
+    def input_line(self, line, prompt="", clear_changes_after=True):
+        """
+        PLEASE no line control chars
+        """
+
+        while len(self.lines) - 1 < line:
+            self.lines.append("")
+            print()
+
+        text = self.lines[line]
+
+        diff = len(self.lines) - 1 - line
+
+        print(f"\033[{diff}F{text}", end="")
+
+        inp = input(prompt)
+        
+        if clear_changes_after:
+            print(f"\033[F{text}{' ' * (len(prompt) + len(inp))}" + ("\n" * (diff - 2)))
+        else:
+            print("\n" * (diff - 2))
+
+        return inp
+
+
+    def write_line(self, line, text, print_func=print, flash=False):
+        """
+        PLEASE no line control chars
+        if the `builtin print` is not given as `print_func`, it must take at least these args:
+            `text:str`, `end:str`, and `no_print:bool`
+        and must return the text it would visualy output
+        """
+        while len(self.lines) - 1 < line:
+            self.lines.append("")
+            print()
+
+        old = self.lines[line]
+
+        if flash:
+            txt = text if print_func == print else print_func(text)
+            self.lines[line] += f"\033[48;2;255;255;255m{txt}\033[0m"
+            self.update(line, print, keep=old)
+            time.sleep(0.05)
+            self.clear_line(line)
+            self.lines[line] = old
+            self.update(line)
+
+        self.lines[line] += text
+        self.update(line, print_func, keep=old)
+
+    def replace_line(self, line, text, print_func=print):
+        """PLEASE no line control chars"""
+        while len(self.lines) - 1 < line:
+            self.lines.append("")
+
+        self.lines[line] = text
+        self.update(line, print_func)
+
+    def new_line(self, text, print_func=print):
+        """PLEASE no line control chars"""
+        self.lines.append(text)
+        print_func(text)
+
+    def new_lines(self, *lines, print_func=print):
+        """PLEASE no line control chars"""
+        for line in lines:
+            self.lines.append(line)
+            print_func(line)
+
+    def update(self, line, print_func=print, keep=None):
+        x = self.lines.copy()
+        x.reverse()
+        for l in x:
+            print(f"\033[F{' ' * len(l)}", end="\r")
+        
+        for l in self.lines:
+            if l == self.lines[line]:
+                if keep:
+                    print(keep, end="")
+                    alt = print_func(l.replace(keep, "", 1))
+                    if isinstance(alt, str):
+                        self.lines[line] = keep + alt
+
+                else:
+                    alt = print_func(l)
+                    if isinstance(alt, str):
+                        self.lines[line] = alt
+            else:
+                print(l)
 
 
 regex_test = "(~/.../.../~) \"(\\\\.|[^\\\"])*\""
@@ -765,7 +892,7 @@ def main():
     
     #print(colorize_lexer_literals(lexer_literal_test))
 
-    #print(colorize_lexer_patterns(lexer_pattern_test))
+    print(colorize_lexer_patterns(lexer_pattern_test))
 
     #print(colorize_lexer(lexer_test))
 
@@ -778,9 +905,9 @@ def main():
 
     def lexer_help():
         def lexer_literals():
-            print("literals in the lexer have the simplest syntax.")
+            typewrite("literals in the lexer have the simplest syntax.")
             time.sleep(0.5)
-            print("say we want to make '+' be recognized as it's own \033[38;2;0;200;50mtoken\033[0m, called 'PLUS'")
+            typewrite("say we want to make '+' be recognized as it's own %\033[38;2;0;200;50m%token%\033[0m%, called 'PLUS'")
             time.sleep(1)
             print(" 01 |\n 02 |\n 03 |\n 04 |\n 05 |")
             # 01 | @Lexer
@@ -851,11 +978,79 @@ def main():
             input("press [ENTER] to continue")
             print("\033[F                         ", end="\r")
 
-    
-            
-        
         def lexer_patterns():
-            pass
+
+            typewrite("lexer patterns are slightly more complex.")
+            time.sleep(0.5)
+            typewrite("for this example, we will write the rules for identifiers/keywords")
+            time.sleep(0.5)
+
+            test = TextArea()
+            # 01 | #!patterns
+            # 02 | identifier: #redirect-from:[_a-zA-Z]
+            # 03 |     >-> (if|elif|else|switch|case|while|for|in|is|throw|catch|and|or|not|true|false|null)
+            # 04 |         >>> (and)
+            # 05 |             AND #no-value
+            # 06 |         >>> (or)
+            # 07 |             OR #no-value
+            # 08 |         >>> (not)
+            # 09 |             NOT #no-value
+            # 10 |         >>> (true|false)
+            # 11 |             BOOLEAN
+            # 12 |         >>> (null)
+            # 13 |             NULL #no-value
+            # 14 |         KEYWORD #regex-value
+            # 15 |     >-> ([_a-zA-Z][_a-zA-Z0-9]*)
+            # 16 |         >-> (f("|'))
+            # 17 |             -> patterns/-/string
+            # 18 |         ID
+            test.new_lines(
+                " 01 | ", # 0
+                " 02 | ", # 1
+                " 03 | ", # 2
+                " 04 | ", # 3
+                " 05 | ", # 4
+                " 06 | ", # 5
+                " 07 | ", # 6
+                " 08 | ", # 7
+                " 09 | ", # 8
+                " 10 | ", # 9
+                " 11 | ", # 10
+                " 12 | ", # 11
+                " 13 | ", # 12
+                " 14 | ", # 13
+                " 15 | ", # 14
+                " 16 | ", # 15
+                " 17 | ", # 16
+                " 18 | ", # 17
+                "" # 18
+                )
+            #test.write_line(2, " test")
+            time.sleep(1)
+            test.write_line(18, "With patterns, we first mark that we are in the patterns section", typewrite)
+            time.sleep(0.5)
+            test.write_line(0, "#!patterns", print, True)
+            time.sleep(0.4)
+            test.clear_line(18)
+            time.sleep(0.2)
+            test.write_line(18, f"now we can define the %{RULE_NAME_COLOR}%identifier%\033[0m% rules", typewrite)
+            time.sleep(0.2)
+            test.write_line(1, f"{RULE_NAME_COLOR}identifier:\033[0m", print, True)
+            time.sleep(0.6)
+            test.clear_line(18)
+            time.sleep(0.2)
+            test.write_line(18, f"now we are going to add a %{FLAG_COLOR}%flag%\033[0m%.", typewrite)
+            test.write_line(19, f"the flag will tell the lexer what characters will trigger this rule,", typewrite)
+            test.write_line(20, f"since there is no literal rule that redirects to this pattern rule.", typewrite)
+            time.sleep(2)
+
+            test.clear_lines(18, 19, 20)
+
+            test.write_line(1, f"{FLAG_COLOR}#redirect-from:{colorize_regex('[_a-zA-Z]')}\033[0m", print, True)
+            time.sleep(0.5)
+
+
+
 
         lexer_menu      = Menu(
             _1_literals = lexer_literals,
