@@ -685,6 +685,13 @@ class Menu:
 class TextArea:
 
     def __init__(self):
+        """
+        This class allows you to output text on multiple lines without the
+        mental pain of figuring out if your in the right place.
+        note: when you plan to use this class, you should only use the class
+        methods to do output, avoid calling print unless you are done with an
+        instance of a TextArea, otherwise, use TextArea.write_line or TextArea.new_line
+        """
         self.lines = []
         #self.line = 0
         #self.col = 0
@@ -739,7 +746,7 @@ class TextArea:
         old = self.lines[line]
 
         if flash:
-            txt = text if print_func == print else print_func(text)
+            txt = text if print_func == print else print_func(text, no_print=True)
             self.lines[line] += f"\033[48;2;255;255;255m{txt}\033[0m"
             self.update(line, print, keep=old)
             time.sleep(0.05)
@@ -1040,14 +1047,41 @@ def main():
             test.clear_line(18)
             time.sleep(0.2)
             test.write_line(18, f"now we are going to add a %{FLAG_COLOR}%flag%\033[0m%.", typewrite)
-            test.write_line(19, f"the flag will tell the lexer what characters will trigger this rule,", typewrite)
+            test.write_line(19, f"the flag will tell the lexer what characters should trigger this rule", typewrite)
             test.write_line(20, f"since there is no literal rule that redirects to this pattern rule.", typewrite)
-            time.sleep(2)
+            time.sleep(1)
 
             test.clear_lines(18, 19, 20)
 
-            test.write_line(1, f"{FLAG_COLOR}#redirect-from:{colorize_regex('[_a-zA-Z]')}\033[0m", print, True)
+            test.write_line(1, f" {FLAG_COLOR}#redirect-from:{colorize_regex('[_a-zA-Z]')}\033[0m", print, True)
             time.sleep(0.5)
+
+            test.write_line(18, "by default, a pattern rule is not checked unless it is redirected to.", typewrite)
+            time.sleep(0.2)
+            test.clear_line(18)
+            time.sleep(0.05)
+
+            test.write_line(18, f"the first rule we add will capture keywords, like 'if', 'else', 'not', etc...", typewrite)
+            time.sleep(0.2)
+            test.write_line(19, f"we will be using a %{LEXER_P_HR_ARROW_COLOR}%hard-reset%\033[0m% pattern for this.", typewrite)
+            time.sleep(0.2)
+            test.write_line(20, f"that type of rule is declared with '%{LEXER_P_HR_ARROW_COLOR}%>->%\033[0m%'", typewrite)
+            time.sleep(0.2)
+
+            test.write_line(2, f"    {LEXER_P_HR_ARROW_COLOR}>->\033[0m", print, True)
+            time.sleep(0.2)
+            test.clear_lines(18, 19, 20)
+            time.sleep(0.2)
+
+            test.write_line(18, f"now we will make a regex pattern.")
+            time.sleep(0.2)
+            test.write_line(19, "()", print, True)
+            time.sleep(0.2)
+            test.clear_line(18)
+            test.write_line(18, )
+
+
+
 
 
 
