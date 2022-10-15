@@ -696,16 +696,24 @@ class TextArea:
         #self.line = 0
         #self.col = 0
 
-    def clear_line(self, line):
+    def clear_line(self, line, flash=False):
         while len(self.lines) - 1 < line:
             self.lines.append("")
+            print()
 
+        #self.write_line(line, " " * len(self.lines[line]))
+        diff = len(self.lines) - line
+        if flash:
+            print(f"\033[{diff}F\033[48;2;255;255;255m{' ' * len(self.lines[line])}\033[0m" + ("\n" * (diff - 1)))
+            time.sleep(0.05)
+        print(f"\033[{diff}F{' ' * len(self.lines[line])}" + ("\n" * (diff - 1)))
         self.lines[line] = ""
         self.update(line)
 
     def clear_lines(self, *lines):
         for line in lines:
-            self.clear_line(line)
+            self.lines[line] = ""
+            self.update(line)
 
     def input_line(self, line, prompt="", clear_changes_after=True):
         """
@@ -718,27 +726,31 @@ class TextArea:
 
         text = self.lines[line]
 
-        diff = len(self.lines) - 1 - line
+        diff = len(self.lines) - line
 
         print(f"\033[{diff}F{text}", end="")
 
         inp = input(prompt)
         
         if clear_changes_after:
-            print(f"\033[F{text}{' ' * (len(prompt) + len(inp))}" + ("\n" * (diff - 2)))
+            print(f"\033[F{text}{' ' * (len(prompt) + len(inp))}" + ("\n" * (diff - 1)))
         else:
             print("\n" * (diff - 2))
 
         return inp
 
 
-    def write_line(self, line, text, print_func=print, flash=False):
+    def write_line(self, line, text, print_func=print, flash=False, wait=0):
         """
         PLEASE no line control chars
         if the `builtin print` is not given as `print_func`, it must take at least these args:
             `text:str`, `end:str`, and `no_print:bool`
         and must return the text it would visualy output
         """
+
+        # if "\n" in text:
+        #     print("\033[38;2;255;0;0mNEWLINE!\033[0m")
+
         while len(self.lines) - 1 < line:
             self.lines.append("")
             print()
@@ -746,7 +758,9 @@ class TextArea:
         old = self.lines[line]
 
         if flash:
-            txt = text if print_func == print else print_func(text, no_print=True)
+            txt = (text if print_func == print else print_func(text, no_print=True)).replace("\n", "")
+            # if "\n" in txt:
+            #     print("\033[38;2;255;0;0mNEWLINE!\033[0m")
             self.lines[line] += f"\033[48;2;255;255;255m{txt}\033[0m"
             self.update(line, print, keep=old)
             time.sleep(0.05)
@@ -754,27 +768,31 @@ class TextArea:
             self.lines[line] = old
             self.update(line)
 
-        self.lines[line] += text
+        self.lines[line] += text.replace("\n", "")
         self.update(line, print_func, keep=old)
+
+        if wait > 0:
+            time.sleep(wait)
 
     def replace_line(self, line, text, print_func=print):
         """PLEASE no line control chars"""
         while len(self.lines) - 1 < line:
             self.lines.append("")
+            print()
 
-        self.lines[line] = text
+        self.lines[line] = text.replace("\n", "")
         self.update(line, print_func)
 
     def new_line(self, text, print_func=print):
         """PLEASE no line control chars"""
-        self.lines.append(text)
+        self.lines.append(text.replace("\n", ""))
         print_func(text)
 
     def new_lines(self, *lines, print_func=print):
         """PLEASE no line control chars"""
         for line in lines:
-            self.lines.append(line)
-            print_func(line)
+            self.lines.append(line.replace("\n", ""))
+            print_func(line.replace("\n", ""))
 
     def update(self, line, print_func=print, keep=None):
         x = self.lines.copy()
@@ -912,53 +930,104 @@ def main():
 
     def lexer_help():
         def lexer_literals():
+
+            
+
+            # ll_area.write_line(0, "literals in the lexer have the simplest syntax.", typewrite)
+            # time.sleep(0.5)
+            # ll_area.clear_line(0)
+            # ll_area.write_line(0, "say we want to make '+' be recognized as it's own %\033[38;2;0;200;50m%token%\033[0m%, called 'PLUS'", typewrite)
+            # time.sleep(0.5)
+
+            
+
+            
             typewrite("literals in the lexer have the simplest syntax.")
             time.sleep(0.5)
             typewrite("say we want to make '+' be recognized as it's own %\033[38;2;0;200;50m%token%\033[0m%, called 'PLUS'")
             time.sleep(1)
-            print(" 01 |\n 02 |\n 03 |\n 04 |\n 05 |")
-            # 01 | @Lexer
-            # 02 | #!literals
-            # 03 | +
-            # 04 |   = PLUSEQ
-            # 05 |   PLUS
-            typewrite("first we mark that we are in the lexer sector", end="")
+
+            ll_area = TextArea()
+
+            ll_area.new_lines(
+                " 01 | ", # 0
+                " 02 | ", # 1
+                " 03 | ", # 2
+                " 04 | ", # 3
+                " 05 | ", # 4 
+                " 06 | ", # 5
+                "", # 6
+                "", # 7
+                "" # 8
+            )
+
+            ll_area.write_line(6, "First we mark that we are in the lexer sector", typewrite, wait=0.2)
+            
+            ll_area.write_line(0, f"{SEGMENT_LABEL_COLOR}@Lexer\033[0m", flash=True, wait=0.2)
+
+            ll_area.clear_line(6)
+            ll_area.write_line(6, "next, mark that we are defining literal rules.", typewrite, wait=0.2)
+            ll_area.write_line(1, f"{SUBSEGMENT_LABEL_COLOR}#!literals\033[0m", flash=True, wait=0.2)
+
+            ll_area.clear_line(5)
+            ll_area.write_line(5, "now we can start writing a rule, first we'll add the '+'", typewrite, wait=0.2)
+            ll_area.write_line(2, f"{LEXER_L_CHAR_COLOR}+\033[0m", flash=True, wait=0.2)
+            time.sleep(0.1)
+            ll_area.clear_line(6)
+            ll_area.write_line(6, "and now we add the 'PLUS' token name", typewrite, wait=0.2)
+            ll_area.write_line(2, f" {TOKEN_COLOR}PLUS\033[0m", flash=True, wait=0.2)
+
+            ll_area.clear_line(6)
+            ll_area.input_line(6, "press [ENTER] to continue")
+            ll_area.write_line(6, "now lets add '+=' to this rule!", typewrite)
+            ll_area.write_line(7, "first lets move the token name down to make room", typewrite, wait=0.2)
+            ll_area.clear_line(2)
+            ll_area.write_line(2, f" 03 | {LEXER_L_CHAR_COLOR}+\033[0m", flash=True, wait=0.2)
+            
+            ll_area.write_line(4, f"    {TOKEN_COLOR}PLUS\033[0m", flash=True, wait=0.2)
+
+            ll_area.clear_lines(6, 7)
+            ll_area.write_line(6, "now since we're adding '+=', we already have the plus,", typewrite)
+            ll_area.clear_line(2)
+            ll_area.write_line(2, f" 03 | ")
+            ll_area.write_line(2, f"{LEXER_L_CHAR_COLOR}+\033[0m", flash=True)
+            ll_area.write_line(6, " so now we just need the '='", typewrite, wait=0.2)
+            ll_area.write_line(3, f"    {LEXER_L_CHAR_COLOR}=\033[0m", flash=True)
+            ll_area.clear_line(6)
+            ll_area.write_line(6, "lets call this token 'PLUSEQ'", typewrite, wait=0.2)
+            ll_area.write_line(3, f" {TOKEN_COLOR}PLUSEQ\033[0m", flash=True)
             time.sleep(0.2)
-            print(f"\033[5F 01 | {SEGMENT_LABEL_COLOR}@Lexer\033[0m\n\n\n\n\n")
-            time.sleep(0.6)
-            typewrite("next, mark that we are making a rule for literals.", end="")
-            time.sleep(0.2)
-            print(f"\033[5F 02 | {SUBSEGMENT_LABEL_COLOR}#!literals\033[0m\n\n\n\n\n")
-            time.sleep(0.6)
-            typewrite("now we can start writing the rules for literal chars!")
-            input("press [ENTER] to continue")
-            print("\033[F                         ", end="\r")
-            typewrite("first, we add a '+' to the rules", end="")
-            time.sleep(0.2)
-            print(f"\033[6F 03 | {LEXER_L_CHAR_COLOR}+\033[0m\n\n\n\n\n\n")
-            time.sleep(0.6)
-            typewrite("and now we add the token name after it", end="")
-            time.sleep(0.2)
-            print(f"\033[7F 03 | {LEXER_L_CHAR_COLOR}+ {TOKEN_COLOR}PLUS\033[0m\n\n\n\n\n\n\n")
-            input("press [ENTER] to continue")
-            print("\033[F                         ", end="\r")
-            typewrite("now lets expand this rule to include '+='")
-            time.sleep(0.5)
-            typewrite("to start, lets re-arrange what we have", end="")
-            time.sleep(0.2)
-            print(f"\033[9F 03 | {LEXER_L_CHAR_COLOR}+\033[0m     \n\n 05 |   {TOKEN_COLOR}PLUS\033[0m\n\n\n\n\n\n\n")
-            time.sleep(0.6)
-            typewrite("now we have room to add onto our rule")
-            time.sleep(0.6)
-            typewrite("we want to add '=' to after the '+'", end="")
-            time.sleep(0.2)
-            print(f"\033[10F 04 |   {LEXER_L_CHAR_COLOR}=\033[0m\n\n\n\n\n\n\n\n\n\n")
-            time.sleep(0.6)
-            typewrite("now we make a new token name for '+=': PLUSEQ", end="")
-            time.sleep(0.2)
-            print(f"\033[11F 04 |   {LEXER_L_CHAR_COLOR}= {TOKEN_COLOR}PLUSEQ\033[0m\n\n\n\n\n\n\n\n\n\n\n")
-            input("press [ENTER] to continue")
-            print("\033[F                         ")
+            ll_area.clear_line(6)
+
+            ll_area.input_line(6, "press [ENTER] to continue")
+
+            ll_area.write_line(6, "now let's look at an example of a literal rule that redirects to a pattern", typewrite, wait=0.4)
+            ll_area.clear_line(6)
+            ll_area.write_line(6, "we'll use strings for this example", typewrite, wait=0.2)
+            ll_area.clear_line(6)
+
+            ll_area.write_line(6, "we'll have strings start with '\"'", typewrite, wait=0.2)
+            ll_area.write_line(5, f"{LEXER_L_CHAR_COLOR}\"\033[0m", flash=True, wait=0.2)
+
+            ll_area.clear_line(6)
+            ll_area.write_line(6, "now we start a redirect, with '->'", typewrite, wait=0.2)
+            ll_area.write_line(5, f" {LEXER_L_ARROW_COLOR}->\033[0m", flash=True, wait=0.1)
+
+            ll_area.clear_line(6)
+            ll_area.write_line(6, "and add a path to the string rule", typewrite, wait=0.2)
+            ll_area.write_line(5, f" {LEXER_L_REDIRECT_COLOR}patterns/-/string\033[0m", flash=True, wait=0.1)
+
+            ll_area.clear_line(6)
+            ll_area.write_line(6, "optionally, you can add an error message for if a redirect fails", typewrite, wait=0.6)
+            ll_area.clear_line(6)
+            ll_area.write_line(6, "to declare an error, add '?' at the end, with an error message", typewrite, wait=0.6)
+            ll_area.write_line(5, f" {LEXER_L_ERROR_COLOR}?InvalidSyntax\033[0m", flash=True, wait=0.2)
+            ll_area.input_line(7, "press [ENTER] to continue")
+
+
+
+            '''
+            
             typewrite("now lets look at an example of a literal that redirects to a pattern")
             time.sleep(0.6)
             typewrite("we'll use strings for this example")
@@ -984,6 +1053,7 @@ def main():
             print(f"\033[5F 06 | {LEXER_L_CHAR_COLOR}\" {LEXER_L_ARROW_COLOR}-> {LEXER_L_REDIRECT_COLOR}patterns/-/string {LEXER_L_ERROR_COLOR}?InvalidSyntax\033[0m\n\n\n\n\n")
             input("press [ENTER] to continue")
             print("\033[F                         ", end="\r")
+            '''
 
         def lexer_patterns():
 
@@ -1030,19 +1100,22 @@ def main():
                 " 16 | ", # 15
                 " 17 | ", # 16
                 " 18 | ", # 17
-                "" # 18
+                "", # 18
+                "", #19
+                "", #20
+                #"" #21
                 )
             #test.write_line(2, " test")
             time.sleep(1)
             test.write_line(18, "With patterns, we first mark that we are in the patterns section", typewrite)
             time.sleep(0.5)
-            test.write_line(0, "#!patterns", print, True)
+            test.write_line(0, f"{SUBSEGMENT_LABEL_COLOR}#!patterns\033[0m", flash=True)
             time.sleep(0.4)
             test.clear_line(18)
             time.sleep(0.2)
             test.write_line(18, f"now we can define the %{RULE_NAME_COLOR}%identifier%\033[0m% rules", typewrite)
             time.sleep(0.2)
-            test.write_line(1, f"{RULE_NAME_COLOR}identifier:\033[0m", print, True)
+            test.write_line(1, f"{RULE_NAME_COLOR}identifier:\033[0m ", flash=True)
             time.sleep(0.6)
             test.clear_line(18)
             time.sleep(0.2)
@@ -1053,7 +1126,7 @@ def main():
 
             test.clear_lines(18, 19, 20)
 
-            test.write_line(1, f" {FLAG_COLOR}#redirect-from:{colorize_regex('[_a-zA-Z]')}\033[0m", print, True)
+            test.write_line(1, f"{FLAG_COLOR}#redirect-from:{REGEX_SET_COLOR}[_a-zA-Z]\033[0m", print, flash=True)
             time.sleep(0.5)
 
             test.write_line(18, "by default, a pattern rule is not checked unless it is redirected to.", typewrite)
@@ -1068,9 +1141,13 @@ def main():
             test.write_line(20, f"that type of rule is declared with '%{LEXER_P_HR_ARROW_COLOR}%>->%\033[0m%'", typewrite)
             time.sleep(0.2)
 
-            test.write_line(2, f"    {LEXER_P_HR_ARROW_COLOR}>->\033[0m", print, True)
+            test.write_line(2, f"    {LEXER_P_HR_ARROW_COLOR}>->\033[0m", flash=True)
             time.sleep(0.2)
-            test.clear_lines(18, 19, 20)
+            test.clear_line(18)
+            time.sleep(0.02)
+            test.clear_line(19)
+            time.sleep(0.02)
+            test.clear_line(20)
             time.sleep(0.2)
 
             test.write_line(18, f"now we will make a regex pattern.")
@@ -1078,7 +1155,17 @@ def main():
             test.write_line(19, "()", print, True)
             time.sleep(0.2)
             test.clear_line(18)
-            test.write_line(18, )
+            test.write_line(18, "and add 'if'", typewrite)
+            test.clear_line(19)
+            test.write_line(19, colorize_regex("(if)"), flash=True)
+            test.write_line(18, ", 'else'", typewrite)
+            test.clear_line(19)
+            test.write_line(19, colorize_regex("(if|else)"), flash=True)
+            test.write_line(18, ", and 'not'", typewrite)
+            test.clear_line(19)
+            test.write_line(19, colorize_regex("(if|else|not)"), flash=True)
+            time.sleep(0.5)
+
 
 
 
