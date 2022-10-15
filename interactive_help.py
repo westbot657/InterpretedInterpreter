@@ -710,10 +710,9 @@ class TextArea:
         self.lines[line] = ""
         self.update(line)
 
-    def clear_lines(self, *lines):
+    def clear_lines(self, *lines, flash=False):
         for line in lines:
-            self.lines[line] = ""
-            self.update(line)
+            self.clear_line(line, flash)
 
     def input_line(self, line, prompt="", clear_changes_after=True):
         """
@@ -774,14 +773,14 @@ class TextArea:
         if wait > 0:
             time.sleep(wait)
 
-    def replace_line(self, line, text, print_func=print):
-        """PLEASE no line control chars"""
-        while len(self.lines) - 1 < line:
-            self.lines.append("")
-            print()
+    # def replace_line(self, line, text, print_func=print):
+    #     """PLEASE no line control chars"""
+    #     while len(self.lines) - 1 < line:
+    #         self.lines.append("")
+    #         print()
 
-        self.lines[line] = text.replace("\n", "")
-        self.update(line, print_func)
+    #     self.lines[line] = text.replace("\n", "")
+    #     self.update(line, print_func)
 
     def new_line(self, text, print_func=print):
         """PLEASE no line control chars"""
@@ -917,7 +916,7 @@ def main():
     
     #print(colorize_lexer_literals(lexer_literal_test))
 
-    print(colorize_lexer_patterns(lexer_pattern_test))
+    #print(colorize_lexer_patterns(lexer_pattern_test))
 
     #print(colorize_lexer(lexer_test))
 
@@ -969,8 +968,8 @@ def main():
             ll_area.write_line(6, "next, mark that we are defining literal rules.", typewrite, wait=0.2)
             ll_area.write_line(1, f"{SUBSEGMENT_LABEL_COLOR}#!literals\033[0m", flash=True, wait=0.2)
 
-            ll_area.clear_line(5)
-            ll_area.write_line(5, "now we can start writing a rule, first we'll add the '+'", typewrite, wait=0.2)
+            ll_area.clear_line(6)
+            ll_area.write_line(6, "now we can start writing a rule, first we'll add the '+'", typewrite, wait=0.2)
             ll_area.write_line(2, f"{LEXER_L_CHAR_COLOR}+\033[0m", flash=True, wait=0.2)
             time.sleep(0.1)
             ll_area.clear_line(6)
@@ -1104,7 +1103,7 @@ def main():
                 "", #19
                 "", #20
                 #"" #21
-                )
+            )
             #test.write_line(2, " test")
             time.sleep(1)
             test.write_line(18, "With patterns, we first mark that we are in the patterns section", typewrite)
@@ -1143,34 +1142,21 @@ def main():
 
             test.write_line(2, f"    {LEXER_P_HR_ARROW_COLOR}>->\033[0m", flash=True)
             time.sleep(0.2)
-            test.clear_line(18)
-            time.sleep(0.02)
-            test.clear_line(19)
-            time.sleep(0.02)
-            test.clear_line(20)
-            time.sleep(0.2)
+            test.clear_lines(18, 19, 20)
 
-            test.write_line(18, f"now we will make a regex pattern.")
-            time.sleep(0.2)
-            test.write_line(19, "()", print, True)
-            time.sleep(0.2)
+            test.write_line(18, f"now we will make a regex pattern.", typewrite, wait=0.2)
+            test.write_line(19, "()", flash=True, wait=0.2)
             test.clear_line(18)
-            test.write_line(18, "and add 'if'", typewrite)
+            test.write_line(18, "and add 'if'", typewrite, wait=0.2)
             test.clear_line(19)
-            test.write_line(19, colorize_regex("(if)"), flash=True)
-            test.write_line(18, ", 'else'", typewrite)
+            test.write_line(19, colorize_regex("(if)"), flash=True, wait=0.5)
+            test.write_line(18, ", 'else'", typewrite, wait=0.2)
             test.clear_line(19)
-            test.write_line(19, colorize_regex("(if|else)"), flash=True)
-            test.write_line(18, ", and 'not'", typewrite)
+            test.write_line(19, colorize_regex("(if|else)"), flash=True, wait=0.5)
+            test.write_line(18, ", and 'not'", typewrite, wait=0.2)
             test.clear_line(19)
             test.write_line(19, colorize_regex("(if|else|not)"), flash=True)
             time.sleep(0.5)
-
-
-
-
-
-
 
 
         lexer_menu      = Menu(
@@ -1200,12 +1186,17 @@ def main():
     
     def parser_help(): pass
 
+    def token_help(): pass
 
-    
-    main_menu  = Menu(
+    def node_help(): pass
+
+
+    main_menu     = Menu(
         _1_lexer  = lexer_help,
         _2_parser = parser_help,
-        _3_exit   = "exit"
+        _3_tokens = token_help,
+        _4_nodes  = node_help,
+        _5_exit   = "exit"
     ).add_regexes(
         _1_lexer = [
             "lex(er)?",
@@ -1215,10 +1206,19 @@ def main():
             "parser?",
             "2"
         ],
-        _3_exit = [
+        _3_tokens = [
+            "tokens?",
+            "tok",
+            "3"
+        ],
+        _4_nodes = [
+            "nodes?",
+            "4"
+        ],
+        _5_exit = [
             "exit",
             "done",
-            "3"
+            "5"
         ]
     )
 
