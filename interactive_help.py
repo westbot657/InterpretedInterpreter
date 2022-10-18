@@ -639,6 +639,27 @@ class Menu:
             self.options.update({key: val})
             self.regexes.update({key: [key]})
 
+
+    @classmethod
+    def numbered(cls, **options):
+        """
+        exact same as Menu(), but automatically numbers the options, starting from 1
+        """
+
+        numbered = {}
+        i = 1
+        for key in options.keys():
+            opt = options[key]
+            numbered.update({f"_{i}_{key}": opt})
+
+            i += 1
+
+        instance = Menu(**numbered)
+
+        instance.add_regexes(**dict(zip(numbered.keys(), [str(i+1) for i in range(len(numbered.keys()))])))
+
+        return instance
+
     def add_regexes(self, **options):
         """
         same syntax as init, but pass a regex pattern string, or list/tuple of patterns
@@ -662,6 +683,30 @@ class Menu:
 
         return self
     
+    def add_numbered_regexes(self, **options):
+        """
+        numbered version of add_regexes
+        """
+
+        i = 1
+        for opt in options.keys():
+            nop = f"_{i}_{opt}"
+            val = options[opt]
+            if isinstance(val, (int, float, bool, str)):
+                val = [val]
+
+            if nop not in self.regexes.keys():
+                self.regexes.update({nop: val})
+
+            else:
+                self.regexes[nop] += val
+
+
+            i += 1
+
+        return self
+
+
     def __call__(self, prompt="", opt_prefix="| ", opt_suffix="", input_prompt=": ", invalid_input="Invalid Input"):
         print(prompt)
         for key in self.options.keys():
@@ -676,6 +721,7 @@ class Menu:
             for key in self.regexes:
                 vals = self.regexes[key]
                 for val in vals:
+                    print(val, opt)
                     if re.fullmatch(val, opt):
                         return self.options[key]
                         
@@ -1159,23 +1205,20 @@ def main():
             time.sleep(0.5)
 
 
-        lexer_menu      = Menu(
-            _1_literals = lexer_literals,
-            _2_patterns = lexer_patterns,
-            _3_exit     = "exit"
-        ).add_regexes(
-            _1_literals = [
-                "litt?erals?",
-                "1"
+        lexer_menu      = Menu.numbered(
+            literals = lexer_literals,
+            patterns = lexer_patterns,
+            exit     = "exit"
+        ).add_numbered_regexes(
+            literals = [
+                "litt?erals?"
             ],
-            _2_patterns = [
-                "patt?er(ns)?",
-                "2"
+            patterns = [
+                "patt?er(ns)?"
             ],
-            _3_exit = [
+            exit = [
                 "exit",
-                "done",
-                "3"
+                "done"
             ]
         )
 
